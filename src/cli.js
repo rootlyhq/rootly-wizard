@@ -18,19 +18,6 @@ const bundledAsciiConverter = '/tmp/ascii-image-converter/ascii-image-converter_
 
 const separator = () => console.log('');
 
-function printFallbackLogo() {
-  console.log('             .');
-  console.log('          .-\' `-.');
-  console.log('       .-(   o   )-.');
-  console.log('    .-(  o \\ | / o  )-.');
-  console.log('   (   o    \\|/    o   )');
-  console.log('    `-.  o   /|\\   o .-\'');
-  console.log('       `-.  / | \\  .-\'');
-  console.log('          `-.___.-\'');
-  console.log('        .-\'       `-.');
-  console.log('     .-\'   Rootly    `-.');
-}
-
 async function resolveAsciiConverter() {
   try {
     await fs.access(bundledAsciiConverter);
@@ -57,8 +44,6 @@ async function printLogo() {
 
   if (converter.status === 0 && converter.stdout.trim()) {
     console.log(converter.stdout.trimEnd());
-  } else {
-    printFallbackLogo();
   }
 
   separator();
