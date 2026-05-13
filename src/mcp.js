@@ -47,10 +47,8 @@ function configFileForClient(client) {
         return path.join(appData || home, 'Windsurf', 'mcp.json');
       }
       return path.join(home, '.windsurf', 'mcp.json');
-    case 'Claude Code':
-      return path.join(home, '.claude', 'claude_code_config.json');
     default:
-      return path.join(process.cwd(), `${client.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-mcp.json`);
+      throw new Error(`Unsupported MCP client: ${client}`);
   }
 }
 

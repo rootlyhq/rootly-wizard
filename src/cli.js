@@ -21,19 +21,22 @@ async function ask(question, defaultValue = '') {
 }
 
 async function choose(question, options) {
-  console.log(question);
-  options.forEach((option, index) => {
-    console.log(`  ${index + 1}. ${option.label}`);
-  });
+  while (true) {
+    console.log(question);
+    options.forEach((option, index) => {
+      console.log(`  ${index + 1}. ${option.label}`);
+    });
 
-  const raw = await rl.question('Select an option: ');
-  const index = Number.parseInt(raw, 10) - 1;
+    const raw = await rl.question('Select an option: ');
+    const index = Number.parseInt(raw, 10) - 1;
 
-  if (Number.isNaN(index) || index < 0 || index >= options.length) {
-    return options[0];
+    if (!Number.isNaN(index) && index >= 0 && index < options.length) {
+      return options[index];
+    }
+
+    console.log(`Please choose a number between 1 and ${options.length}.`);
+    separator();
   }
-
-  return options[index];
 }
 
 function printSummary(title, items) {
@@ -155,10 +158,7 @@ async function mcpSetup() {
   const client = await choose('Which client do you want to configure?', [
     { label: 'Cursor' },
     { label: 'Claude Desktop' },
-    { label: 'Claude Code' },
-    { label: 'Windsurf' },
-    { label: 'Codex' },
-    { label: 'Gemini CLI' }
+    { label: 'Windsurf' }
   ]);
   const tokenType = await choose('How will Rootly auth be provided?', [
     { label: 'Use stored token' },
