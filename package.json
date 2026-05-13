@@ -1,0 +1,13 @@
+{
+  "name": "@rootly/wizard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guided Rootly setup CLI",
+  "type": "module",
+  "bin": {
+    "rootly-wizard": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js"
+  }
+}
