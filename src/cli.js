@@ -2,6 +2,7 @@
 
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
 
 const rl = readline.createInterface({ input, output });
 
@@ -38,6 +39,50 @@ function printSummary(title, items) {
   heading(title);
   items.forEach((item) => console.log(`- ${item}`));
   separator();
+}
+
+async function authFlow() {
+  heading('Rootly auth');
+
+  const existingToken = await getStoredToken();
+  if (existingToken) {
+    const reuse = await ask('A Rootly token is already stored. Reuse it? (yes/no)', 'yes');
+    if (reuse.toLowerCase().startsWith('y')) {
+      printSummary('Auth', ['Stored token found in keychain', 'Reusing existing token']);
+      return existingToken;
+    }
+  }
+
+  const token = await ask('Paste your Rootly token');
+  const baseUrl = await ask('Rootly API base URL', 'https://api.rootly.com');
+
+  console.log('Validating token...');
+  const isValid = await validateToken(token, baseUrl);
+
+  if (!isValid) {
+    printSummary('Auth failed', [
+      'Token did not validate against Rootly',
+      'Nothing was stored'
+    ]);
+    rl.close();
+    process.exitCode = 1;
+    return null;
+  }
+
+  const stored = await storeToken(token);
+  printSummary('Auth complete', [
+    'Token validated successfully',
+    stored ? 'Token stored securely in the system keychain' : 'Token validated, but the system keychain was unavailable'
+  ]);
+
+  return token;
+}
+
+async function logoutFlow() {
+  const deleted = await deleteToken();
+  printSummary('Logout', [
+    deleted ? 'Stored token deleted from keychain' : 'No stored token found or keychain was unavailable'
+  ]);
 }
 
 async function accountSetup() {
@@ -121,6 +166,19 @@ async function main() {
   heading('Rootly Wizard');
   console.log('A guided setup CLI for new and existing Rootly customers.');
   separator();
+
+  const entry = process.argv[2];
+  if (entry === 'logout' || entry === 'forget') {
+    await logoutFlow();
+    rl.close();
+    return;
+  }
+
+  await authFlow();
+  if (process.exitCode) {
+    rl.close();
+    return;
+  }
 
   const action = await choose('What would you like to do?', [
     { label: 'Account setup' },

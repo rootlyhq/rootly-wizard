@@ -9,5 +9,8 @@
   },
   "scripts": {
     "start": "node ./src/cli.js"
+  },
+  "dependencies": {
+    "keytar": "^7.9.0"
   }
 }
