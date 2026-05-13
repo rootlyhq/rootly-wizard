@@ -11,6 +11,18 @@ const rl = readline.createInterface({ input, output });
 
 const separator = () => console.log('');
 
+function printLogo() {
+  console.log('        .-');
+  console.log('     .-(   )-.');
+  console.log('   .(   .-.   ).');
+  console.log('  /  .-(   )-.  \\');
+  console.log(' |  (   .-.   )  |');
+  console.log('  \\  `-(   )-\'  /');
+  console.log('   `-(   `-\'   )-\'');
+  console.log('      `-.___.-\'');
+  separator();
+}
+
 function heading(text) {
   console.log(text);
   console.log('-'.repeat(text.length));
@@ -269,6 +281,7 @@ async function mcpSetup() {
 }
 
 async function main() {
+  printLogo();
   heading('Rootly Wizard');
   console.log('A guided onboarding CLI for new Rootly customers.');
   separator();
