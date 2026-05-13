@@ -1,25 +1,42 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildHostedMcpPreview, getMcpConfigPath, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { detectOnboardingState } from './detect-state.js';
 
 const rl = readline.createInterface({ input, output });
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph.png');
 
 const separator = () => console.log('');
 
+function printFallbackLogo() {
+  console.log('        o');
+  console.log('     o  /|\\  o');
+  console.log('   o   / | \\   o');
+  console.log('      /  |  \\');
+  console.log('   .-`   |   `-.');
+  console.log('  /  .-._|_.-.  \\');
+  console.log(' /__/   / \\   \\__\\');
+}
+
 function printLogo() {
-  console.log('        .-');
-  console.log('     .-(   )-.');
-  console.log('   .(   .-.   ).');
-  console.log('  /  .-(   )-.  \\');
-  console.log(' |  (   .-.   )  |');
-  console.log('  \\  `-(   )-\'  /');
-  console.log('   `-(   `-\'   )-\'');
-  console.log('      `-.___.-\'');
+  const converter = spawnSync('ascii-image-converter', [logoPath, '-b', '-W', '42'], {
+    encoding: 'utf8'
+  });
+
+  if (converter.status === 0 && converter.stdout.trim()) {
+    console.log(converter.stdout.trimEnd());
+  } else {
+    printFallbackLogo();
+  }
+
   separator();
 }
 
