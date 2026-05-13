@@ -2,7 +2,7 @@
 
 Rootly Wizard is a CLI for accelerating Rootly setup.
 
-The initial goal is to help new customers get operational quickly without needing to understand every Rootly setup surface up front. Over time, the same tool can support expansion tasks for existing customers, such as adding a new team, connecting another integration, or configuring Rootly MCP for engineers.
+The initial goal is to help new customers get operational quickly without needing to understand every Rootly setup surface up front. This is primarily a new customer onboarding flow. Over time, the same tool can support expansion tasks for existing customers, such as adding a new team, connecting another integration, or configuring Rootly MCP for engineers.
 
 ## Why this exists
 
@@ -107,7 +107,7 @@ This ordering is based on the assumption that many startups:
 - deterministic setup actions wherever possible
 - useful both during trial and after purchase
 
-The CLI should feel safe for a startup audience. Token-based auth is acceptable for MVP. OAuth should be used where it materially improves setup, especially for Slack.
+The CLI should feel safe for a startup audience. Token-based auth is acceptable for MVP. OAuth should be used where it materially improves setup, especially for Slack. For the onboarding MVP, the wizard assumes an admin org-wide Rootly API key so it can complete setup without permission gaps.
 
 ## Technical approach
 
