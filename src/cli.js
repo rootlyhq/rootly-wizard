@@ -4,6 +4,8 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
+import { RootlyApiClient } from './rootly-api.js';
+import { detectOnboardingState } from './detect-state.js';
 
 const rl = readline.createInterface({ input, output });
 
@@ -43,6 +45,17 @@ function printSummary(title, items) {
   heading(title);
   items.forEach((item) => console.log(`- ${item}`));
   separator();
+}
+
+function printOnboardingState(state) {
+  printSummary('Onboarding state', [
+    `User: ${state.user.name || state.user.email || 'Unknown'}`,
+    `Teams: ${state.teams.total}`,
+    `Slack connected: ${state.user.slackConnected ? 'yes' : 'no'}`,
+    `Schedules present: ${state.teams.hasAnySchedules ? 'yes' : 'no'}`,
+    `Escalation policies present: ${state.teams.hasAnyEscalationPolicies ? 'yes' : 'no'}`,
+    `Next best action: ${state.onboarding.nextBestAction}`
+  ]);
 }
 
 async function authFlow() {
@@ -93,6 +106,29 @@ async function authFlow() {
   return token;
 }
 
+async function loadOnboardingState() {
+  const token = process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken());
+  if (!token) {
+    return null;
+  }
+
+  const api = new RootlyApiClient(token);
+  const [userPayload, teamsPayload, schedulesPayload, escalationPoliciesPayload] = await Promise.all([
+    api.getCurrentUser(),
+    api.listTeams(),
+    api.listSchedules(),
+    api.listEscalationPolicies()
+  ]);
+
+  return detectOnboardingState({
+    userPayload,
+    teamsPayload,
+    schedulesPayload,
+    escalationPoliciesPayload,
+    authMode: process.env.ROOTLY_TOKEN?.trim() ? 'env-token' : 'stored-token'
+  });
+}
+
 async function logoutFlow() {
   const deleted = await deleteToken();
   printSummary('Logout', [
@@ -104,6 +140,11 @@ async function accountSetup() {
   heading('Onboard a new customer');
   console.log('Alerts track: sign up, invite team members, set up on-call, create escalation policy, hook up a monitor, test page.');
   separator();
+
+  const state = await loadOnboardingState();
+  if (state) {
+    printOnboardingState(state);
+  }
 
   const teamName = await ask('Team name', 'Payments');
   const ownerEmail = await ask('Primary admin email', 'owner@company.com');
@@ -131,6 +172,11 @@ async function slackSetup() {
   console.log('Incidents track: connect Slack, then create a test incident.');
   separator();
 
+  const state = await loadOnboardingState();
+  if (state) {
+    printOnboardingState(state);
+  }
+
   const mode = await choose('How should Slack be connected?', [
     { label: 'OAuth connect' },
     { label: 'Paste workspace token / existing auth' }
@@ -148,6 +194,10 @@ async function slackSetup() {
 
 async function alertSourceSetup() {
   heading('Hook up a monitor');
+  const state = await loadOnboardingState();
+  if (state) {
+    printOnboardingState(state);
+  }
 
   const source = await choose('Which alert source are we setting up?', [
     { label: 'Generic webhook' },
@@ -168,6 +218,11 @@ async function mcpSetup() {
   heading('IDE / MCP setup');
   console.log('This uses the hosted Rootly MCP server and writes config for supported clients only.');
   separator();
+
+  const state = await loadOnboardingState();
+  if (state) {
+    printOnboardingState(state);
+  }
 
   const client = await choose('Which client do you want to configure?', [
     { label: 'Cursor' },
@@ -225,10 +280,18 @@ async function main() {
     return;
   }
 
-  await authFlow();
-  if (process.exitCode) {
-    rl.close();
-    return;
+  const hasAuthContext = Boolean(process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken()));
+  if (!hasAuthContext) {
+    await authFlow();
+    if (process.exitCode) {
+      rl.close();
+      return;
+    }
+  } else {
+    printSummary('Auth', [
+      process.env.ROOTLY_TOKEN?.trim() ? 'Using ROOTLY_TOKEN from environment' : 'Stored token found in keychain',
+      'Proceeding to onboarding state detection'
+    ]);
   }
 
   const action = await choose('What would you like to do?', [
