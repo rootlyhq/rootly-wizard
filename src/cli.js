@@ -50,7 +50,9 @@ async function resolveAsciiConverter() {
 async function printLogo() {
   const executable = await resolveAsciiConverter();
   const converter = executable
-    ? spawnSync(executable, [logoPath, '-b', '-W', '42'], { encoding: 'utf8' })
+    ? spawnSync(executable, [logoPath, '-b', '--threshold', '160', '-n', '-W', '28'], {
+        encoding: 'utf8'
+      })
     : { status: 1, stdout: '' };
 
   if (converter.status === 0 && converter.stdout.trim()) {
