@@ -1,49 +1,62 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs/promises';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { buildHostedMcpPreview, getMcpConfigPath, writeHostedMcpConfig } from './mcp.js';
+import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { detectOnboardingState } from './detect-state.js';
 
 const rl = readline.createInterface({ input, output });
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph.png');
-const bundledAsciiConverter = '/tmp/ascii-image-converter/ascii-image-converter_macOS_arm64_64bit/ascii-image-converter';
+const LOGO_ART = [
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⢠⣤⣄⡀⠐⣿⣿⠇⢀⣠⣤⡄⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣿⣿⠀⠈⠁⠀⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠠⣶⣶⣦⡀⠀⠀⣼⣧⠀⠀⢀⣴⣶⣶⡆⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠈⠛⠛⠁⠀⠀⢿⣿⠃⠀⠈⠛⠛⠉⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⢰⣶⣶⣶⣶⣶⣦⣄⠀⠀⣠⣤⣶⣶⣶⣶⣶⡆⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠈⠉⠀⠀⠈⠉⠛⢿⣷⣾⡿⠛⠉⠁⠀⠀⠈⠁⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠿⠿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+  '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀'
+].join('\n');
 
 const separator = () => console.log('');
 
-async function resolveAsciiConverter() {
-  try {
-    await fs.access(bundledAsciiConverter);
-    return bundledAsciiConverter;
-  } catch {
-    // Fall through to PATH lookup.
-  }
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const SHIMMER_COLORS = ['\u001b[38;5;255m', '\u001b[38;5;252m', '\u001b[38;5;250m'];
+const RESET = '\u001b[0m';
 
-  const pathLookup = spawnSync('ascii-image-converter', ['--help'], { encoding: 'utf8' });
-  if (pathLookup.error || pathLookup.status !== 0) {
-    return null;
-  }
+function colorizeLogo(frame) {
+  const lines = LOGO_ART.split('\n');
 
-  return 'ascii-image-converter';
+  return lines
+    .map((line, lineIndex) => {
+      if (!line.trim()) {
+        return '';
+      }
+
+      const color = SHIMMER_COLORS[(lineIndex + frame) % SHIMMER_COLORS.length];
+      return `${color}${line}${RESET}`;
+    })
+    .join('\n');
 }
 
 async function printLogo() {
-  const executable = await resolveAsciiConverter();
-  const converter = executable
-    ? spawnSync(executable, [logoPath, '-b', '--threshold', '160', '-n', '-W', '28'], {
-        encoding: 'utf8'
-      })
-    : { status: 1, stdout: '' };
+  if (!output.isTTY) {
+    console.log(LOGO_ART);
+    separator();
+    return;
+  }
 
-  if (converter.status === 0 && converter.stdout.trim()) {
-    console.log(converter.stdout.trimEnd());
+  for (let frame = 0; frame < 3; frame += 1) {
+    process.stdout.write('\u001b[H\u001b[2J\u001b[3J');
+    console.log(colorizeLogo(frame));
+    await sleep(80);
   }
 
   separator();
@@ -89,11 +102,71 @@ function printOnboardingState(state) {
   printSummary('Onboarding state', [
     `User: ${state.user.name || state.user.email || 'Unknown'}`,
     `Teams: ${state.teams.total}`,
+    `Team membership: ${state.teams.hasAnyTeamMembership ? 'yes' : 'no'}`,
     `Slack connected: ${state.user.slackConnected ? 'yes' : 'no'}`,
     `Schedules present: ${state.teams.hasAnySchedules ? 'yes' : 'no'}`,
     `Escalation policies present: ${state.teams.hasAnyEscalationPolicies ? 'yes' : 'no'}`,
+    `Alerting-ready teams: ${state.teams.hasAnyAlertingReadyTeam ? 'yes' : 'no'}`,
     `Next best action: ${state.onboarding.nextBestAction}`
   ]);
+
+  printSummary('Readiness', [
+    `Workspace setup: ${state.onboarding.readiness.workspaceSetup}`,
+    `Group setup: ${state.onboarding.readiness.groupSetup}`,
+    `Alerting setup: ${state.onboarding.readiness.alertingSetup}`,
+    `Incident setup: ${state.onboarding.readiness.incidentSetup}`
+  ]);
+
+  printSummary('Step status', [
+    `Create team: ${state.onboarding.steps.createTeam}`,
+    `Invite team members: ${state.onboarding.steps.inviteTeamMembers}`,
+    `Create schedule: ${state.onboarding.steps.createSchedule}`,
+    `Create escalation policy: ${state.onboarding.steps.createEscalationPolicy}`,
+    `Hook up monitor: ${state.onboarding.steps.hookUpMonitor}`,
+    `Connect Slack: ${state.onboarding.steps.connectSlack}`,
+    `Test page: ${state.onboarding.steps.testPage}`,
+    `Test incident: ${state.onboarding.steps.createTestIncident}`
+  ]);
+}
+
+function printDoctorSummary(state) {
+  printSummary('Doctor', [
+    state.onboarding.completed ? 'Setup looks healthy enough to start using Rootly.' : 'Setup is still incomplete.',
+    `Next best action: ${state.onboarding.nextBestAction}`,
+    state.onboarding.steps.createTeam === 'needed' ? 'Create the first workspace-level team container.' : null,
+    state.onboarding.steps.inviteTeamMembers === 'needed' ? 'Attach at least one member to the current workspace.' : null,
+    state.onboarding.steps.createSchedule === 'needed' ? 'Create a first on-call schedule.' : null,
+    state.onboarding.steps.createEscalationPolicy === 'needed' ? 'Create an escalation policy for responders.' : null,
+    state.onboarding.steps.hookUpMonitor === 'needed' ? 'Connect a generic webhook alert source.' : null,
+    state.onboarding.steps.connectSlack === 'needed' ? 'Connect Slack before testing incident collaboration.' : null
+  ].filter(Boolean));
+}
+
+function printStartupStatus(state) {
+  printSummary('Rootly status', [
+    `Workspace setup: ${state.onboarding.readiness.workspaceSetup}`,
+    `Group setup: ${state.onboarding.readiness.groupSetup}`,
+    `Alerting setup: ${state.onboarding.readiness.alertingSetup}`,
+    `Incident setup: ${state.onboarding.readiness.incidentSetup}`,
+    `Next best action: ${state.onboarding.nextBestAction}`
+  ]);
+}
+
+function recommendedActionLabel(state) {
+  switch (state?.onboarding.nextBestAction) {
+    case 'create-team':
+    case 'invite-team-members':
+    case 'create-schedule':
+    case 'create-escalation-policy':
+      return 'Onboard a new customer';
+    case 'hook-up-monitor':
+      return 'Hook up a monitor';
+    case 'connect-slack':
+    case 'create-test-incident':
+      return 'Connect Slack for incidents';
+    default:
+      return 'Onboard a new customer';
+  }
 }
 
 async function authFlow() {
@@ -174,9 +247,240 @@ async function logoutFlow() {
   ]);
 }
 
+async function statusFlow() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    printSummary('Status', ['No auth context found. Authenticate first to inspect onboarding state.']);
+    return;
+  }
+
+  printOnboardingState(state);
+}
+
+async function doctorFlow() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    printSummary('Doctor', ['No auth context found. Authenticate first to inspect onboarding readiness.']);
+    return;
+  }
+
+  printOnboardingState(state);
+  printDoctorSummary(state);
+}
+
+function extractTeamId(group) {
+  return group?.data?.id || group?.id || null;
+}
+
+function extractUserId(user) {
+  return user?.id || user?.data?.id || null;
+}
+
+function buildHappyPathSummary(items) {
+  return items.filter(Boolean);
+}
+
+async function runWorkspaceSetup(state) {
+  const token = process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken());
+  if (!token) {
+    throw new Error('Rootly auth is required before running onboarding mutations');
+  }
+
+  const api = new RootlyApiClient(token);
+  const currentUser = await api.getCurrentUser();
+  const currentUserId = extractUserId(currentUser);
+  const currentUserEmail = currentUser?.data?.attributes?.email || null;
+
+  const teamName = state?.onboarding.steps.createTeam === 'needed'
+    ? await ask('Team name', 'Payments')
+    : 'Rootly team';
+  const ownerEmail = state?.onboarding.steps.createTeam === 'needed'
+    ? await ask('Primary admin email', currentUserEmail || 'owner@company.com')
+    : currentUserEmail || 'owner@company.com';
+  const membersRaw = state?.onboarding.steps.inviteTeamMembers === 'needed'
+    ? await ask('Invite team members now? (comma-separated emails, optional)', '')
+    : '';
+
+  const memberEmails = membersRaw
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  const resolvedMembers = [];
+  for (const email of memberEmails) {
+    const match = await api.findUserByEmail(email);
+    if (match) {
+      resolvedMembers.push(match);
+    }
+  }
+
+  const resolvedMemberIds = resolvedMembers.map((user) => Number.parseInt(user.id, 10)).filter(Number.isFinite);
+
+  const teamPayload = await api.createTeam({
+    name: teamName,
+    description: `Created by Rootly Wizard for ${ownerEmail}`,
+    notify_emails: memberEmails,
+    user_ids: [currentUserId, ...resolvedMemberIds].filter(Boolean),
+    admin_ids: [currentUserId].filter(Boolean),
+    alerts_email_enabled: true,
+    incident_broadcast_enabled: true,
+    auto_add_members_when_attached: true
+  });
+
+  const teamId = extractTeamId(teamPayload);
+
+  const createdSchedule = await api.createSchedule({
+    name: `${teamName} On-Call`,
+    description: 'Primary on-call rotation created by Rootly Wizard',
+    all_time_coverage: true,
+    owner_user_id: currentUserId,
+    owner_group_ids: teamId ? [teamId] : []
+  });
+
+  const scheduleId = createdSchedule?.data?.id || createdSchedule?.id || null;
+  if (scheduleId) {
+    await api.createScheduleRotation(scheduleId, {
+      name: `${teamName} Primary Rotation`,
+      schedule_rotationable_type: 'ScheduleDailyRotation',
+      schedule_rotationable_attributes: {
+        handoff_time: '09:00'
+      },
+      position: 1,
+      active_all_week: true,
+      time_zone: 'Etc/UTC',
+      schedule_rotation_members: [
+        ...([currentUserId].filter(Boolean).map((id, index) => ({
+          member_type: 'User',
+          member_id: id,
+          position: index + 1
+        }))),
+        ...resolvedMemberIds.map((id, index) => ({
+          member_type: 'User',
+          member_id: id,
+          position: index + 2
+        }))
+      ]
+    });
+  }
+
+  const escalationPolicy = await api.createEscalationPolicy({
+    name: `${teamName} Default Escalation`,
+    description: 'Default escalation policy created by Rootly Wizard',
+    repeat_count: 1,
+    group_ids: teamId ? [teamId] : [],
+    service_ids: []
+  });
+
+  const escalationPolicyId = escalationPolicy?.data?.id || escalationPolicy?.id || null;
+
+  if (escalationPolicyId && scheduleId) {
+    try {
+      const escalationPathPayload = await api.request(`/v1/escalation_policies/${escalationPolicyId}/escalation_paths`, {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'escalation_paths',
+            attributes: {
+              name: `${teamName} Default Path`,
+              notification_type: 'audible',
+              path_type: 'escalation',
+              default: true,
+              match_mode: 'match-all-rules',
+              position: 1,
+              repeat: false,
+              initial_delay: 0,
+              rules: [
+                {
+                  rule_type: 'alert_urgency',
+                  urgency_ids: []
+                }
+              ]
+            }
+          }
+        }
+      });
+
+      void escalationPathPayload;
+    } catch (error) {
+      console.log(`Could not create escalation path automatically: ${error.message}`);
+    }
+  }
+
+  let alertSourceSummary = 'skipped';
+  const alertSourceChoice = await choose('Create or connect an alert source?', [
+    { label: 'Generic webhook' }
+  ]);
+
+  try {
+    const sourcePayload = await api.createAlertSource({
+      name: `${teamName} ${alertSourceChoice.label}`,
+      source_type: 'webhook',
+      owner_group_ids: teamId ? [teamId] : [],
+      sourceable_attributes: {
+        auto_resolve: false,
+        accept_threaded_emails: false
+      }
+    });
+    alertSourceSummary = sourcePayload?.data?.attributes?.webhook_endpoint || sourcePayload?.data?.attributes?.secret || 'connected';
+  } catch (error) {
+    alertSourceSummary = `manual follow-up needed (${error.message})`;
+  }
+
+  printSummary('Created objects', buildHappyPathSummary([
+    `Team: ${teamName}`,
+    teamId ? `Team ID: ${teamId}` : null,
+    `Resolved member emails: ${resolvedMembers.map((user) => user.attributes?.email).join(', ') || 'none'}`,
+    scheduleId ? `Schedule: ${scheduleId}` : 'Schedule: not created',
+    escalationPolicyId ? `Escalation policy: ${escalationPolicyId}` : 'Escalation policy: not created',
+    `Alert source: ${alertSourceSummary}`
+  ]));
+
+  printSummary('Slack', [
+    'Slack OAuth is still the handoff step.',
+    'Use the existing Rootly Slack install flow to connect the workspace, then come back to wire incident channels.'
+  ]);
+}
+
+async function runGroupSetup(state) {
+  printSummary('Group setup', [
+    state?.onboarding.steps.inviteTeamMembers === 'needed' ? 'Invite members and map them to the workspace.' : 'Member mapping already looks present.',
+    state?.onboarding.steps.createSchedule === 'needed' ? 'Create the first on-call schedule next.' : 'A schedule already exists for the current scope.',
+    state?.onboarding.steps.createEscalationPolicy === 'needed' ? 'Create an escalation policy for the new group.' : 'An escalation policy already exists for the current scope.'
+  ]);
+}
+
+async function runAlertingSetup(state) {
+  printSummary('Alerting setup', [
+    state?.onboarding.steps.hookUpMonitor === 'needed'
+      ? 'Generic webhook is the only fully supported alert source in the wizard right now.'
+      : 'Alerting looks partially configured already.',
+    state?.onboarding.steps.testPage === 'blocked'
+      ? 'Test paging stays blocked until the generic webhook path is in place.'
+      : 'You can test paging after connecting the alert source.'
+  ]);
+}
+
+async function runIncidentSetup(state) {
+  printSummary('Incident setup', [
+    state?.onboarding.steps.connectSlack === 'needed'
+      ? 'Slack still needs the existing Rootly OAuth handoff.'
+      : 'Slack looks connected already.',
+    state?.onboarding.steps.createTestIncident === 'blocked'
+      ? 'A test incident should wait until Slack is connected.'
+      : 'A test incident is the right final smoke test.'
+  ]);
+}
+
+async function runOnboarding(state) {
+  await runWorkspaceSetup(state);
+  await runGroupSetup(state);
+  await runAlertingSetup(state);
+  await runIncidentSetup(state);
+}
+
 async function accountSetup() {
   heading('Onboard a new customer');
-  console.log('Alerts track: sign up, invite team members, set up on-call, create escalation policy, hook up a monitor, test page.');
+  console.log('Workspace setup, group setup, alerting setup, then incident setup.');
   separator();
 
   const state = await loadOnboardingState();
@@ -184,25 +488,7 @@ async function accountSetup() {
     printOnboardingState(state);
   }
 
-  const teamName = await ask('Team name', 'Payments');
-  const ownerEmail = await ask('Primary admin email', 'owner@company.com');
-  const addMembers = await ask('Invite team members now? (comma-separated emails, optional)', '');
-  const createSchedule = await ask('Set up the first on-call schedule now? (yes/no)', 'yes');
-  const createEscalationPolicy = await ask('Create a default escalation policy now? (yes/no)', 'yes');
-  const alertSource = await ask('Hook up a monitor or alert source', 'Sentry');
-  const testPage = await ask('Send a test page after setup? (yes/no)', 'yes');
-
-  const created = [
-    `Team: ${teamName}`,
-    `Primary admin: ${ownerEmail}`,
-    addMembers ? `Invited team members: ${addMembers}` : null,
-    createSchedule.toLowerCase().startsWith('y') ? 'On-call schedule: created with starter rotation defaults' : 'On-call schedule: skipped',
-    createEscalationPolicy.toLowerCase().startsWith('y') ? 'Escalation policy: created with default Rootly flow' : 'Escalation policy: skipped',
-    `Monitor / alert source: ${alertSource}`,
-    testPage.toLowerCase().startsWith('y') ? 'Test page: requested' : 'Test page: skipped'
-  ].filter(Boolean);
-
-  printSummary('Alerts track summary', created);
+  await runOnboarding(state);
 }
 
 async function slackSetup() {
@@ -219,12 +505,15 @@ async function slackSetup() {
     { label: 'OAuth connect' },
     { label: 'Paste workspace token / existing auth' }
   ]);
-  const channel = await ask('Default incident channel', '#incidents');
-  const testIncident = await ask('Create a test incident after Slack is connected? (yes/no)', 'yes');
+  const channel = state?.user.slackConnected ? '#incidents' : await ask('Default incident channel', '#incidents');
+  const testIncident = state?.onboarding.steps.createTestIncident === 'blocked'
+    ? 'no'
+    : await ask('Create a test incident after Slack is connected? (yes/no)', 'yes');
 
   printSummary('Incidents track summary', [
     `Connection mode: ${mode.label}`,
     `Default channel: ${channel}`,
+    state?.user.slackConnected ? 'Slack: already connected' : 'Slack: connect via Rootly workspace binding',
     testIncident.toLowerCase().startsWith('y') ? 'Test incident: requested' : 'Test incident: skipped',
     'Next step: hand off to Rootly Slack auth / workspace binding'
   ]);
@@ -238,12 +527,9 @@ async function alertSourceSetup() {
   }
 
   const source = await choose('Which alert source are we setting up?', [
-    { label: 'Generic webhook' },
-    { label: 'PagerDuty' },
-    { label: 'Opsgenie' },
-    { label: 'Datadog' }
+    { label: 'Generic webhook' }
   ]);
-  const serviceName = await ask('Service name', 'payments-api');
+  const serviceName = state?.teams.hasAnyAlertingReadyTeam ? 'payments-api' : await ask('Service name', 'payments-api');
 
   printSummary('Monitor setup plan', [
     `Source: ${source.label}`,
@@ -264,8 +550,10 @@ async function mcpSetup() {
 
   const client = await choose('Which client do you want to configure?', [
     { label: 'Cursor' },
+    { label: 'Claude Code' },
     { label: 'Claude Desktop' },
-    { label: 'Windsurf' }
+    { label: 'Windsurf' },
+    { label: 'Codex' }
   ]);
   const tokenType = await choose('How will Rootly auth be provided?', [
     { label: 'Use stored token' },
@@ -297,11 +585,13 @@ async function mcpSetup() {
   }
 
   const targetPath = await writeHostedMcpConfig(client.label, token);
+  await verifyHostedMcpConfig(client.label);
 
   printSummary('MCP setup plan', [
     `Client: ${client.label}`,
     `Auth: ${tokenType.label}`,
     `Config written to: ${targetPath}`,
+    'Config verified successfully',
     'Next step: restart the client if needed and verify the connection'
   ]);
 }
@@ -326,6 +616,18 @@ async function main() {
     return;
   }
 
+  if (entry === 'status') {
+    await statusFlow();
+    rl.close();
+    return;
+  }
+
+  if (entry === 'doctor') {
+    await doctorFlow();
+    rl.close();
+    return;
+  }
+
   const hasAuthContext = Boolean(process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken()));
   if (!hasAuthContext) {
     await authFlow();
@@ -340,20 +642,35 @@ async function main() {
     ]);
   }
 
-  const action = await choose('What would you like to do?', [
-    { label: 'Onboard a new customer' },
-    { label: 'Connect Slack for incidents' },
-    { label: 'Hook up a monitor' },
-    { label: 'Set up MCP / IDE' }
-  ]);
+  const state = await loadOnboardingState();
+  if (state) {
+    console.log('Checking your Rootly setup...');
+    separator();
+    printStartupStatus(state);
+  }
+
+  const actions = [];
+  const recommended = state ? recommendedActionLabel(state) : 'Onboard a new customer';
+  actions.push({ label: `Continue recommended setup (${recommended})`, action: recommended });
+  actions.push({ label: 'Check status / doctor', action: 'Check status / doctor' });
+
+  for (const option of ['Onboard a new customer', 'Connect Slack for incidents', 'Hook up a monitor', 'Set up MCP / IDE']) {
+    if (option !== recommended) {
+      actions.push({ label: option, action: option });
+    }
+  }
+
+  const action = await choose('What would you like to do?', actions);
 
   separator();
 
-  if (action.label === 'Onboard a new customer') {
+  if (action.action === 'Onboard a new customer') {
     await accountSetup();
-  } else if (action.label === 'Connect Slack for incidents') {
+  } else if (action.action === 'Check status / doctor') {
+    await doctorFlow();
+  } else if (action.action === 'Connect Slack for incidents') {
     await slackSetup();
-  } else if (action.label === 'Hook up a monitor') {
+  } else if (action.action === 'Hook up a monitor') {
     await alertSourceSetup();
   } else {
     await mcpSetup();

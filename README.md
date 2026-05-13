@@ -69,7 +69,7 @@ The MVP should focus on a narrow set of high-value setup tasks.
 
 - guided account setup
 - Slack connection and basic Slack configuration
-- alert source setup
+- generic webhook alert source setup
 - alert verification / test paging
 - MCP / IDE configuration
 
@@ -87,10 +87,10 @@ For brand-new customers, the wizard should guide users through a recommended seq
 Suggested flow:
 
 1. Sign up / authenticate
-2. Invite team members
-3. Set up the first on-call schedule
+2. Complete workspace setup
+3. Set up the first group and schedule
 4. Create an escalation policy with Rootly defaults
-5. Hook up a monitor or alert source
+5. Hook up a generic webhook alert source
 6. Test page
 7. Connect Slack for incidents
 8. Create a test incident
@@ -104,7 +104,7 @@ This ordering is based on the assumption that many startups:
 
 For the onboarding MVP, the flow breaks into two tracks:
 
-- Alerts: sign up, invite team members, set up on-call, create escalation policy, hook up monitor, test page
+- Alerts: sign up, invite team members, set up on-call, create escalation policy, hook up generic webhook, test page
 - Incidents: connect Slack, create a test incident
 
 ## User experience principles
@@ -137,7 +137,7 @@ That means the CLI may eventually use AI for recommendations, explanations, and 
 ### MVP priorities
 
 - Slack
-- alert source setup
+- generic webhook alert source setup
 - status pages
 - MCP / IDE setup
 
@@ -145,6 +145,7 @@ That means the CLI may eventually use AI for recommendations, explanations, and 
 
 - Slack can likely use OAuth-based connection flows
 - MCP setup uses the hosted Rootly MCP server and can write config files for supported clients
-- Supported MCP clients in the current MVP: Cursor, Claude Desktop, Windsurf
+- Supported MCP clients in the current MVP: Cursor, Claude Code, Claude Desktop, Windsurf, Codex
 - Rootly auth can come from a stored token or `ROOTLY_TOKEN`
+- Vendor-specific alert sources stay out of the wizard until we have full support for them
 - workflows should be excluded from MVP because they add too much complexity

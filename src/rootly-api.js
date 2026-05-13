@@ -4,16 +4,21 @@ export class RootlyApiClient {
     this.baseUrl = baseUrl;
   }
 
-  async request(path) {
+  async request(path, options = {}) {
     const response = await fetch(new URL(path, this.baseUrl), {
+      method: options.method || 'GET',
       headers: {
         Authorization: `Bearer ${this.token}`,
-        Accept: 'application/vnd.api+json'
-      }
+        Accept: 'application/vnd.api+json',
+        ...(options.body ? { 'Content-Type': 'application/vnd.api+json' } : {}),
+        ...(options.headers || {})
+      },
+      ...(options.body ? { body: JSON.stringify(options.body) } : {})
     });
 
     if (!response.ok) {
-      throw new Error(`Rootly API request failed for ${path}: ${response.status}`);
+      const text = await response.text().catch(() => '');
+      throw new Error(`Rootly API request failed for ${path}: ${response.status}${text ? ` - ${text}` : ''}`);
     }
 
     return response.json();
@@ -27,6 +32,10 @@ export class RootlyApiClient {
     return this.request('/v1/teams?include=users,schedules,escalation_policies');
   }
 
+  async listUsers() {
+    return this.request('/v1/users');
+  }
+
   async listSchedules() {
     return this.request('/v1/schedules');
   }
@@ -34,5 +43,81 @@ export class RootlyApiClient {
   async listEscalationPolicies() {
     return this.request('/v1/escalation_policies');
   }
-}
 
+  async createTeam(attributes) {
+    return this.request('/v1/teams', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'groups',
+          attributes
+        }
+      }
+    });
+  }
+
+  async updateTeam(id, attributes) {
+    return this.request(`/v1/teams/${id}`, {
+      method: 'PUT',
+      body: {
+        data: {
+          type: 'groups',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createSchedule(attributes) {
+    return this.request('/v1/schedules', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'schedules',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createScheduleRotation(scheduleId, attributes) {
+    return this.request(`/v1/schedules/${scheduleId}/schedule_rotations`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'schedule_rotations',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createEscalationPolicy(attributes) {
+    return this.request('/v1/escalation_policies', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'escalation_policies',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createAlertSource(attributes) {
+    return this.request('/v1/alert_sources', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'alert_sources',
+          attributes
+        }
+      }
+    });
+  }
+
+  async findUserByEmail(email) {
+    const payload = await this.listUsers();
+    return payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === email.toLowerCase()) || null;
+  }
+}
