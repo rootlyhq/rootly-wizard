@@ -17,13 +17,16 @@ const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph.png');
 const separator = () => console.log('');
 
 function printFallbackLogo() {
-  console.log('        o');
-  console.log('     o  /|\\  o');
-  console.log('   o   / | \\   o');
-  console.log('      /  |  \\');
-  console.log('   .-`   |   `-.');
-  console.log('  /  .-._|_.-.  \\');
-  console.log(' /__/   / \\   \\__\\');
+  console.log('             .');
+  console.log('          .-\' `-.');
+  console.log('       .-(   o   )-.');
+  console.log('    .-(  o \\ | / o  )-.');
+  console.log('   (   o    \\|/    o   )');
+  console.log('    `-.  o   /|\\   o .-\'');
+  console.log('       `-.  / | \\  .-\'');
+  console.log('          `-.___.-\'');
+  console.log('        .-\'       `-.');
+  console.log('     .-\'   Rootly    `-.');
 }
 
 function printLogo() {
