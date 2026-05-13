@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs/promises';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import { detectOnboardingState } from './detect-state.js';
 const rl = readline.createInterface({ input, output });
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph.png');
+const bundledAsciiConverter = '/tmp/ascii-image-converter/ascii-image-converter_macOS_arm64_64bit/ascii-image-converter';
 
 const separator = () => console.log('');
 
@@ -29,10 +31,27 @@ function printFallbackLogo() {
   console.log('     .-\'   Rootly    `-.');
 }
 
-function printLogo() {
-  const converter = spawnSync('ascii-image-converter', [logoPath, '-b', '-W', '42'], {
-    encoding: 'utf8'
-  });
+async function resolveAsciiConverter() {
+  try {
+    await fs.access(bundledAsciiConverter);
+    return bundledAsciiConverter;
+  } catch {
+    // Fall through to PATH lookup.
+  }
+
+  const pathLookup = spawnSync('ascii-image-converter', ['--help'], { encoding: 'utf8' });
+  if (pathLookup.error || pathLookup.status !== 0) {
+    return null;
+  }
+
+  return 'ascii-image-converter';
+}
+
+async function printLogo() {
+  const executable = await resolveAsciiConverter();
+  const converter = executable
+    ? spawnSync(executable, [logoPath, '-b', '-W', '42'], { encoding: 'utf8' })
+    : { status: 1, stdout: '' };
 
   if (converter.status === 0 && converter.stdout.trim()) {
     console.log(converter.stdout.trimEnd());
@@ -301,10 +320,17 @@ async function mcpSetup() {
 }
 
 async function main() {
-  printLogo();
+  await printLogo();
   heading('Rootly Wizard');
   console.log('A guided onboarding CLI for new Rootly customers.');
   separator();
+
+  if (!input.isTTY || !output.isTTY) {
+    console.log('An interactive terminal is required. Run this in a normal shell session.');
+    process.exitCode = 1;
+    rl.close();
+    return;
+  }
 
   const entry = process.argv[2];
   if (entry === 'logout' || entry === 'forget') {
