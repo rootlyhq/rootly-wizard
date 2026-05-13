@@ -101,43 +101,53 @@ async function logoutFlow() {
 }
 
 async function accountSetup() {
-  heading('Account setup');
+  heading('Onboard a new customer');
+  console.log('Alerts track: sign up, invite team members, set up on-call, create escalation policy, hook up a monitor, test page.');
+  separator();
 
   const teamName = await ask('Team name', 'Payments');
-  const ownerEmail = await ask('Owner email', 'owner@company.com');
-  const addMembers = await ask('Add more member emails now? (comma-separated, optional)', '');
-  const createSchedule = await ask('Create an initial schedule now? (yes/no)', 'yes');
+  const ownerEmail = await ask('Primary admin email', 'owner@company.com');
+  const addMembers = await ask('Invite team members now? (comma-separated emails, optional)', '');
+  const createSchedule = await ask('Set up the first on-call schedule now? (yes/no)', 'yes');
   const createEscalationPolicy = await ask('Create a default escalation policy now? (yes/no)', 'yes');
+  const alertSource = await ask('Hook up a monitor or alert source', 'Sentry');
+  const testPage = await ask('Send a test page after setup? (yes/no)', 'yes');
 
   const created = [
     `Team: ${teamName}`,
-    `Owner: ${ownerEmail}`,
-    addMembers ? `Invites: ${addMembers}` : null,
-    createSchedule.toLowerCase().startsWith('y') ? 'Schedule: created with starter rotation defaults' : 'Schedule: skipped',
-    createEscalationPolicy.toLowerCase().startsWith('y') ? 'Escalation policy: created with default Rootly flow' : 'Escalation policy: skipped'
+    `Primary admin: ${ownerEmail}`,
+    addMembers ? `Invited team members: ${addMembers}` : null,
+    createSchedule.toLowerCase().startsWith('y') ? 'On-call schedule: created with starter rotation defaults' : 'On-call schedule: skipped',
+    createEscalationPolicy.toLowerCase().startsWith('y') ? 'Escalation policy: created with default Rootly flow' : 'Escalation policy: skipped',
+    `Monitor / alert source: ${alertSource}`,
+    testPage.toLowerCase().startsWith('y') ? 'Test page: requested' : 'Test page: skipped'
   ].filter(Boolean);
 
-  printSummary('What the wizard can do now', created);
+  printSummary('Alerts track summary', created);
 }
 
 async function slackSetup() {
-  heading('Slack setup');
+  heading('Connect Slack for incidents');
+  console.log('Incidents track: connect Slack, then create a test incident.');
+  separator();
 
   const mode = await choose('How should Slack be connected?', [
     { label: 'OAuth connect' },
     { label: 'Paste workspace token / existing auth' }
   ]);
   const channel = await ask('Default incident channel', '#incidents');
+  const testIncident = await ask('Create a test incident after Slack is connected? (yes/no)', 'yes');
 
-  printSummary('Slack setup plan', [
+  printSummary('Incidents track summary', [
     `Connection mode: ${mode.label}`,
     `Default channel: ${channel}`,
+    testIncident.toLowerCase().startsWith('y') ? 'Test incident: requested' : 'Test incident: skipped',
     'Next step: hand off to Rootly Slack auth / workspace binding'
   ]);
 }
 
 async function alertSourceSetup() {
-  heading('Alert source setup');
+  heading('Hook up a monitor');
 
   const source = await choose('Which alert source are we setting up?', [
     { label: 'Generic webhook' },
@@ -147,10 +157,10 @@ async function alertSourceSetup() {
   ]);
   const serviceName = await ask('Service name', 'payments-api');
 
-  printSummary('Alert source plan', [
+  printSummary('Monitor setup plan', [
     `Source: ${source.label}`,
     `Service: ${serviceName}`,
-    'Next step: create the integration and return the webhook / connect instructions'
+    'Next step: create the integration and run a test page'
   ]);
 }
 
@@ -223,8 +233,8 @@ async function main() {
 
   const action = await choose('What would you like to do?', [
     { label: 'Onboard a new customer' },
-    { label: 'Connect Slack' },
-    { label: 'Add an alert source' },
+    { label: 'Connect Slack for incidents' },
+    { label: 'Hook up a monitor' },
     { label: 'Set up MCP / IDE' }
   ]);
 
@@ -232,9 +242,9 @@ async function main() {
 
   if (action.label === 'Onboard a new customer') {
     await accountSetup();
-  } else if (action.label === 'Connect Slack') {
+  } else if (action.label === 'Connect Slack for incidents') {
     await slackSetup();
-  } else if (action.label === 'Add an alert source') {
+  } else if (action.label === 'Hook up a monitor') {
     await alertSourceSetup();
   } else {
     await mcpSetup();

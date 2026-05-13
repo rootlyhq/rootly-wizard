@@ -70,7 +70,7 @@ The MVP should focus on a narrow set of high-value setup tasks.
 - guided account setup
 - Slack connection and basic Slack configuration
 - alert source setup
-- status page setup
+- alert verification / test paging
 - MCP / IDE configuration
 
 ### Out of scope for MVP
@@ -86,18 +86,26 @@ For brand-new customers, the wizard should guide users through a recommended seq
 
 Suggested flow:
 
-1. Connect Slack
-2. Create an escalation policy with Rootly defaults
-3. Create an initial on-call structure
-4. Connect an alert source
-5. Set up a status page
-6. Optionally configure MCP / IDE integration
+1. Sign up / authenticate
+2. Invite team members
+3. Set up the first on-call schedule
+4. Create an escalation policy with Rootly defaults
+5. Hook up a monitor or alert source
+6. Test page
+7. Connect Slack for incidents
+8. Create a test incident
+9. Optionally configure MCP / IDE integration
 
 This ordering is based on the assumption that many startups:
 
 - do not yet know what a good schedule structure looks like
 - want best-practice guidance
 - care most about becoming operational quickly
+
+For the onboarding MVP, the flow breaks into two tracks:
+
+- Alerts: sign up, invite team members, set up on-call, create escalation policy, hook up monitor, test page
+- Incidents: connect Slack, create a test incident
 
 ## User experience principles
 
