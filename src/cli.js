@@ -47,6 +47,8 @@ function printSummary(title, items) {
 
 async function authFlow() {
   heading('Rootly auth');
+  console.log('This wizard is primarily for new customer onboarding and assumes an admin org-wide Rootly API key.');
+  separator();
 
   const envToken = process.env.ROOTLY_TOKEN?.trim();
   const existingToken = await getStoredToken();
@@ -66,7 +68,7 @@ async function authFlow() {
     }
   }
 
-  const token = await ask('Paste your Rootly token');
+  const token = await ask('Paste your admin org-wide Rootly API key');
   const baseUrl = await ask('Rootly API base URL', 'https://api.rootly.com');
 
   console.log('Validating token...');
@@ -154,6 +156,8 @@ async function alertSourceSetup() {
 
 async function mcpSetup() {
   heading('IDE / MCP setup');
+  console.log('This uses the hosted Rootly MCP server and writes config for supported clients only.');
+  separator();
 
   const client = await choose('Which client do you want to configure?', [
     { label: 'Cursor' },
@@ -201,7 +205,7 @@ async function mcpSetup() {
 
 async function main() {
   heading('Rootly Wizard');
-  console.log('A guided setup CLI for new and existing Rootly customers.');
+  console.log('A guided onboarding CLI for new Rootly customers.');
   separator();
 
   const entry = process.argv[2];
@@ -218,19 +222,19 @@ async function main() {
   }
 
   const action = await choose('What would you like to do?', [
-    { label: 'Account setup' },
-    { label: 'Slack setup' },
-    { label: 'Alert source setup' },
-    { label: 'IDE / MCP setup' }
+    { label: 'Onboard a new customer' },
+    { label: 'Connect Slack' },
+    { label: 'Add an alert source' },
+    { label: 'Set up MCP / IDE' }
   ]);
 
   separator();
 
-  if (action.label === 'Account setup') {
+  if (action.label === 'Onboard a new customer') {
     await accountSetup();
-  } else if (action.label === 'Slack setup') {
+  } else if (action.label === 'Connect Slack') {
     await slackSetup();
-  } else if (action.label === 'Alert source setup') {
+  } else if (action.label === 'Add an alert source') {
     await alertSourceSetup();
   } else {
     await mcpSetup();
