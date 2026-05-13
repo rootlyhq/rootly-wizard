@@ -4,6 +4,10 @@ const SERVICE_NAME = 'rootly-wizard';
 const ACCOUNT_NAME = 'rootly-token';
 
 export async function getStoredToken() {
+  if (process.env.ROOTLY_TOKEN?.trim()) {
+    return process.env.ROOTLY_TOKEN.trim();
+  }
+
   try {
     return await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
   } catch {
@@ -12,6 +16,10 @@ export async function getStoredToken() {
 }
 
 export async function storeToken(token) {
+  if (process.env.ROOTLY_TOKEN?.trim()) {
+    return false;
+  }
+
   try {
     return await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
   } catch {
@@ -20,6 +28,10 @@ export async function storeToken(token) {
 }
 
 export async function deleteToken() {
+  if (process.env.ROOTLY_TOKEN?.trim()) {
+    return false;
+  }
+
   try {
     return await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
   } catch {

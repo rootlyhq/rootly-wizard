@@ -44,7 +44,16 @@ function printSummary(title, items) {
 async function authFlow() {
   heading('Rootly auth');
 
+  const envToken = process.env.ROOTLY_TOKEN?.trim();
   const existingToken = await getStoredToken();
+  if (envToken) {
+    printSummary('Auth', [
+      'Using ROOTLY_TOKEN from environment',
+      'No local secret storage needed'
+    ]);
+    return envToken;
+  }
+
   if (existingToken) {
     const reuse = await ask('A Rootly token is already stored. Reuse it? (yes/no)', 'yes');
     if (reuse.toLowerCase().startsWith('y')) {
@@ -72,7 +81,7 @@ async function authFlow() {
   const stored = await storeToken(token);
   printSummary('Auth complete', [
     'Token validated successfully',
-    stored ? 'Token stored securely in the system keychain' : 'Token validated, but the system keychain was unavailable'
+    stored ? 'Token stored securely in the system keychain' : 'Token validated, but local secret storage was unavailable'
   ]);
 
   return token;
@@ -81,7 +90,7 @@ async function authFlow() {
 async function logoutFlow() {
   const deleted = await deleteToken();
   printSummary('Logout', [
-    deleted ? 'Stored token deleted from keychain' : 'No stored token found or keychain was unavailable'
+    deleted ? 'Stored token deleted from keychain' : 'No stored token found, or auth is being supplied by ROOTLY_TOKEN'
   ]);
 }
 
