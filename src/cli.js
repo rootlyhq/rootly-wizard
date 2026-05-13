@@ -2,6 +2,7 @@
 
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { buildHostedMcpPreview, getMcpConfigPath, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
 
 const rl = readline.createInterface({ input, output });
@@ -159,15 +160,42 @@ async function mcpSetup() {
     { label: 'Codex' },
     { label: 'Gemini CLI' }
   ]);
-  const tokenType = await choose('How will auth be provided?', [
-    { label: 'Token now' },
-    { label: 'OAuth later' }
+  const tokenType = await choose('How will Rootly auth be provided?', [
+    { label: 'Use stored token' },
+    { label: 'Use ROOTLY_TOKEN' }
   ]);
+
+  const writeConfig = await ask('Should I write the MCP config file for you? (yes/no)', 'yes');
+  const preview = buildHostedMcpPreview(client.label, tokenType.label);
+
+  console.log(preview);
+  separator();
+
+  if (!writeConfig.toLowerCase().startsWith('y')) {
+    printSummary('MCP setup plan', [
+      `Client: ${client.label}`,
+      `Config path: ${getMcpConfigPath(client.label)}`,
+      'Next step: copy the config into place or rerun and let the wizard write it'
+    ]);
+    return;
+  }
+
+  const token = await getStoredToken();
+  if (!token) {
+    printSummary('MCP setup blocked', [
+      'No stored Rootly token was found',
+      'Authenticate first, or provide ROOTLY_TOKEN in the environment'
+    ]);
+    return;
+  }
+
+  const targetPath = await writeHostedMcpConfig(client.label, token);
 
   printSummary('MCP setup plan', [
     `Client: ${client.label}`,
     `Auth: ${tokenType.label}`,
-    'Next step: generate the correct config block and write it when safe'
+    `Config written to: ${targetPath}`,
+    'Next step: restart the client if needed and verify the connection'
   ]);
 }
 
