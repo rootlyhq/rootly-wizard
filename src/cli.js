@@ -13,7 +13,7 @@ import { detectOnboardingState } from './detect-state.js';
 
 const rl = readline.createInterface({ input, output });
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph.png');
+const logoPath = path.join(currentDir, '..', 'assets', 'rootly-logo-glyph-trimmed.png');
 const bundledAsciiConverter = '/tmp/ascii-image-converter/ascii-image-converter_macOS_arm64_64bit/ascii-image-converter';
 
 const separator = () => console.log('');
@@ -50,7 +50,7 @@ async function resolveAsciiConverter() {
 async function printLogo() {
   const executable = await resolveAsciiConverter();
   const converter = executable
-    ? spawnSync(executable, [logoPath, '-b', '--threshold', '160', '-n', '-W', '28'], {
+    ? spawnSync(executable, [logoPath, '-m', '  .,:;=+*#%@', '-W', '22'], {
         encoding: 'utf8'
       })
     : { status: 1, stdout: '' };
