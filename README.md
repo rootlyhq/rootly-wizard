@@ -136,5 +136,7 @@ That means the CLI may eventually use AI for recommendations, explanations, and 
 ### Notes
 
 - Slack can likely use OAuth-based connection flows
-- MCP setup can write config files locally depending on IDE / agent environment
+- MCP setup uses the hosted Rootly MCP server and can write config files for supported clients
+- Supported MCP clients in the current MVP: Cursor, Claude Desktop, Windsurf
+- Rootly auth can come from a stored token or `ROOTLY_TOKEN`
 - workflows should be excluded from MVP because they add too much complexity
