@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
@@ -147,9 +147,27 @@ async function askHidden(question) {
     return answer.trim();
   }
 
+  const prompt = `${tone(question, FG_SLATE)}: `;
+
+  if (process.platform !== 'win32') {
+    rl.close();
+    try {
+      spawnSync('stty', ['-echo'], { stdio: ['inherit', 'ignore', 'ignore'] });
+      const hiddenRl = createInterface();
+      output.write(prompt);
+      const answer = await hiddenRl.question('');
+      hiddenRl.close();
+      output.write('\n');
+      return answer.trim();
+    } finally {
+      spawnSync('stty', ['echo'], { stdio: ['inherit', 'ignore', 'ignore'] });
+      rl = createInterface();
+    }
+  }
+
   try {
     rl.pause();
-    output.write(`${tone(question, FG_SLATE)}: `);
+    output.write(prompt);
     if (typeof input.setRawMode === 'function') {
       input.setRawMode(true);
     }
@@ -293,18 +311,19 @@ function printStartupStatus(state) {
 function recommendedActionLabel(state) {
   switch (state?.onboarding.nextBestAction) {
     case 'run-guided-setup':
+      return 'Review remaining setup';
     case 'create-team':
+      return 'Create a team';
     case 'invite-team-members':
+      return 'Add team members';
     case 'create-schedule':
+      return 'Create a schedule';
     case 'create-escalation-policy':
-      return 'Run guided setup';
+      return 'Create an escalation policy';
     case 'hook-up-monitor':
       return 'Hook up a monitor';
-    case 'connect-slack':
-    case 'create-test-incident':
-      return 'Connect Slack for incidents';
     default:
-      return 'Run guided setup';
+      return 'Review remaining setup';
   }
 }
 
@@ -448,7 +467,8 @@ async function chooseMenuAction(state) {
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
     { label: 'Inspect (readiness and teams)', action: 'Inspect' },
-    { label: 'Disconnect', action: 'Disconnect' }
+    { label: 'Disconnect', action: 'Disconnect' },
+    { label: 'Exit wizard', action: 'Exit wizard' }
   ]);
 
   if (category.action !== 'Setup' && category.action !== 'Integrations' && category.action !== 'Inspect') {
@@ -748,14 +768,10 @@ async function runWorkspaceSetup(state) {
   const api = new RootlyApiClient(token);
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
-  const currentUserEmail = currentUser?.data?.attributes?.email || null;
 
   const teamName = state?.onboarding.steps.createTeam === 'needed'
     ? await ask('Primary team name', 'Payments')
     : 'Rootly team';
-  const ownerEmail = state?.onboarding.steps.createTeam === 'needed'
-    ? await ask('Primary admin email', currentUserEmail || 'owner@company.com')
-    : currentUserEmail || 'owner@company.com';
   const membersRaw = state?.onboarding.steps.inviteTeamMembers === 'needed'
     ? await ask('Invite team members now? (comma-separated emails, optional)', '')
     : '';
@@ -777,7 +793,6 @@ async function runWorkspaceSetup(state) {
 
   printSummary('Planned setup', buildHappyPathSummary([
     `Group / team: ${teamName}`,
-    `Primary admin: ${ownerEmail}`,
     `Matched existing users: ${resolvedMembers.map((user) => user.attributes?.email).join(', ') || 'none'}`,
     memberEmails.length ? `Requested invite emails: ${memberEmails.join(', ')}` : 'Requested invite emails: none',
     'Schedule: create primary on-call rotation',
@@ -1018,13 +1033,52 @@ async function accountSetup() {
   await runOnboarding(state);
 }
 
+async function continueRecommendedSetup(state) {
+  const nextAction = state?.onboarding?.nextBestAction || 'run-guided-setup';
+
+  if (nextAction === 'create-team') {
+    await createTeamSetup();
+    return;
+  }
+
+  if (nextAction === 'invite-team-members') {
+    await addTeamMembersSetup();
+    return;
+  }
+
+  if (nextAction === 'create-schedule') {
+    await createScheduleSetup();
+    return;
+  }
+
+  if (nextAction === 'create-escalation-policy') {
+    await createEscalationPolicySetup();
+    return;
+  }
+
+  if (nextAction === 'hook-up-monitor') {
+    await alertSourceSetup();
+    return;
+  }
+
+  heading('Review remaining setup');
+  console.log('The workspace already has the main setup objects the wizard can verify.');
+  separator();
+  if (state) {
+    printOnboardingState(state);
+    printSummary('What comes next', [
+      'Use the explicit setup actions in the menu if you want to keep refining teams, schedules, or escalation policies.',
+      'Use the integrations menu when you are ready to connect Slack or another vendor integration.'
+    ]);
+  }
+}
+
 async function createTeamSetup() {
   heading('Create a team');
   const state = await loadOnboardingState();
   const api = await loadApiClient();
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
-  const currentUserEmail = currentUser?.data?.attributes?.email || 'owner@company.com';
 
   if (state) {
     printStartupStatus(state);
@@ -1451,10 +1505,12 @@ async function main() {
 
     separator();
 
-    if (action === 'Run guided setup') {
-      await accountSetup();
-    } else if (action === 'Check readiness') {
-      await readinessFlow();
+  if (action === 'Review remaining setup') {
+    await continueRecommendedSetup(state);
+  } else if (action === 'Run guided setup') {
+    await accountSetup();
+  } else if (action === 'Check readiness') {
+    await readinessFlow();
     } else if (action === 'View teams') {
       await teamsFlow();
     } else if (action === 'Create a team') {
@@ -1473,6 +1529,8 @@ async function main() {
       await vendorHandoffSetup();
     } else if (action === 'Disconnect') {
       await logoutFlow();
+      break;
+    } else if (action === 'Exit wizard') {
       break;
     } else {
       await mcpSetup();
