@@ -143,6 +143,65 @@ async function ask(question, defaultValue = '') {
   return answer.trim() || defaultValue;
 }
 
+async function askHidden(question) {
+  if (!input.isTTY || !output.isTTY) {
+    const answer = await rl.question(`${tone(question, FG_SLATE)}: `);
+    return answer.trim();
+  }
+
+  const prompt = `${tone(question, FG_SLATE)}: `;
+  output.write(prompt);
+
+  return new Promise((resolve) => {
+    const previousRawMode = input.isRaw;
+    let value = '';
+
+    const cleanup = () => {
+      input.off('data', onData);
+      if (typeof input.setRawMode === 'function') {
+        input.setRawMode(Boolean(previousRawMode));
+      }
+      input.pause();
+      output.write('\n');
+    };
+
+    const onData = (chunk) => {
+      const text = chunk.toString('utf8');
+
+      if (text === '\r' || text === '\n') {
+        cleanup();
+        resolve(value.trim());
+        return;
+      }
+
+      if (text === '\u0003') {
+        cleanup();
+        rl.close();
+        process.exit(1);
+      }
+
+      if (text === '\u007f' || text === '\b' || text === '\x1b[3~') {
+        if (value.length > 0) {
+          value = value.slice(0, -1);
+        }
+        return;
+      }
+
+      if (text.startsWith('\u001b')) {
+        return;
+      }
+
+      value += text;
+    };
+
+    if (typeof input.setRawMode === 'function') {
+      input.setRawMode(true);
+    }
+    input.resume();
+    input.on('data', onData);
+  });
+}
+
 async function choose(question, options) {
   while (true) {
     console.log(panelTitle(question));
@@ -568,7 +627,7 @@ async function authFlow() {
     }
   }
 
-  const token = await ask('Paste your admin org-wide Rootly API key');
+  const token = await askHidden('Paste your admin org-wide Rootly API key');
   const baseUrl = process.env.ROOTLY_API_BASE_URL?.trim() || 'https://api.rootly.com';
 
   console.log('Validating token...');
