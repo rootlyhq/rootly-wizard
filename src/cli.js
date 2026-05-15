@@ -450,12 +450,12 @@ async function chooseMenuAction(state) {
     { label: `Continue recommended setup (${recommended})`, action: recommended },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
-    { label: 'Tools (MCP / IDE configuration)', action: 'Tools' },
+    { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
     { label: 'Inspect (readiness and teams)', action: 'Inspect' },
-    { label: 'Account (disconnect)', action: 'Account' }
+    { label: 'Disconnect', action: 'Disconnect' }
   ]);
 
-  if (category.action !== 'Setup' && category.action !== 'Integrations' && category.action !== 'Tools' && category.action !== 'Inspect' && category.action !== 'Account') {
+  if (category.action !== 'Setup' && category.action !== 'Integrations' && category.action !== 'Inspect') {
     return category.action;
   }
 
@@ -493,11 +493,6 @@ async function chooseMenuAction(state) {
     ]);
     return inspectAction.action;
   }
-
-  const accountAction = await choose('Account', [
-    { label: 'Disconnect', action: 'Disconnect' }
-  ]);
-  return accountAction.action;
 }
 
 async function readSessionCheckpoint() {
