@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
+import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
@@ -143,57 +144,31 @@ async function askHidden(question) {
     return answer.trim();
   }
 
-  const prompt = `${tone(question, FG_SLATE)}: `;
-  output.write(prompt);
-
-  return new Promise((resolve) => {
-    const previousRawMode = input.isRaw;
-    let value = '';
-
-    const cleanup = () => {
-      input.off('data', onData);
-      if (typeof input.setRawMode === 'function') {
-        input.setRawMode(Boolean(previousRawMode));
+  const mutableOutput = new Writable({
+    write(chunk, encoding, callback) {
+      if (!mutableOutput.muted) {
+        output.write(chunk, encoding);
       }
-      input.pause();
-      output.write('\n');
-    };
-
-    const onData = (chunk) => {
-      const text = chunk.toString('utf8');
-
-      if (text === '\r' || text === '\n') {
-        cleanup();
-        resolve(value.trim());
-        return;
-      }
-
-      if (text === '\u0003') {
-        cleanup();
-        rl.close();
-        process.exit(1);
-      }
-
-      if (text === '\u007f' || text === '\b' || text === '\x1b[3~') {
-        if (value.length > 0) {
-          value = value.slice(0, -1);
-        }
-        return;
-      }
-
-      if (text.startsWith('\u001b')) {
-        return;
-      }
-
-      value += text;
-    };
-
-    if (typeof input.setRawMode === 'function') {
-      input.setRawMode(true);
+      callback();
     }
-    input.resume();
-    input.on('data', onData);
   });
+  mutableOutput.muted = false;
+
+  const hiddenRl = readline.createInterface({
+    input,
+    output: mutableOutput,
+    terminal: true
+  });
+
+  try {
+    mutableOutput.muted = true;
+    output.write(`${tone(question, FG_SLATE)}: `);
+    const answer = await hiddenRl.question('');
+    output.write('\n');
+    return answer.trim();
+  } finally {
+    hiddenRl.close();
+  }
 }
 
 async function choose(question, options) {
