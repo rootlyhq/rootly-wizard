@@ -6,6 +6,25 @@ function userTeamIds(userPayload) {
   return userPayload?.data?.relationships?.teams?.data?.map((team) => team.id) || [];
 }
 
+function currentWorkspaceId(userPayload) {
+  return userPayload?.data?.relationships?.current_team?.data?.id || null;
+}
+
+function inferredWorkspaceName(userPayload) {
+  const explicitName =
+    userPayload?.data?.attributes?.current_team_name ||
+    userPayload?.data?.attributes?.team_name ||
+    null;
+
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const decorated = userPayload?.data?.attributes?.full_name_with_team || '';
+  const match = decorated.match(/^\[(.+?)\]/);
+  return match?.[1] || null;
+}
+
 function getSlackId(userPayload) {
   return userPayload?.data?.attributes?.slack_id || null;
 }
@@ -16,6 +35,23 @@ function getRelationshipIds(entity, relationshipName) {
 
 function getTeamAttributes(team) {
   return team?.attributes || {};
+}
+
+function countSlackCoverageSignals(attrs = {}) {
+  const scalarSignals = [
+    attrs.slack_channel_id,
+    attrs.slack_channel_name,
+    attrs.slack_channel,
+    attrs.slack_group_id,
+    attrs.slack_workspace_id
+  ].filter((value) => value !== null && value !== undefined && value !== '');
+
+  const arraySignals = [
+    ...(Array.isArray(attrs.slack_channels) ? attrs.slack_channels : []),
+    ...(Array.isArray(attrs.slack_aliases) ? attrs.slack_aliases : [])
+  ];
+
+  return scalarSignals.length + arraySignals.length;
 }
 
 function count(items) {
@@ -34,6 +70,22 @@ function summarizeStage(doneCount, totalCount) {
   return 'in-progress';
 }
 
+function teamCoverageLabel(doneCount, totalCount) {
+  if (totalCount <= 0) {
+    return 'needed';
+  }
+
+  if (doneCount <= 0) {
+    return 'needed';
+  }
+
+  if (doneCount >= totalCount) {
+    return 'done';
+  }
+
+  return 'in-progress';
+}
+
 export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayload, escalationPoliciesPayload, authMode = 'stored-token' }) {
   const user = userPayload?.data?.attributes || {};
   const teams = teamsPayload?.data || [];
@@ -41,22 +93,15 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
   const escalationPolicies = escalationPoliciesPayload?.data || [];
 
   const teamsById = new Map(teams.map((team) => [team.id, team]));
+  const workspaceId = currentWorkspaceId(userPayload);
+  const workspace = workspaceId ? teamsById.get(workspaceId) : null;
   const currentUserTeamIds = userTeamIds(userPayload);
   const currentUserTeams = currentUserTeamIds.map((id) => teamsById.get(id)).filter(Boolean);
   const teamsWithSchedules = teams.filter((team) => count(getRelationshipIds(team, 'schedules')) > 0);
   const teamsWithEscalationPolicies = teams.filter((team) => count(getRelationshipIds(team, 'escalation_policies')) > 0);
   const teamsWithSlack = teams.filter((team) => {
     const attrs = getTeamAttributes(team);
-    const slackSignals = [
-      attrs.slack_channel_id,
-      attrs.slack_channel_name,
-      attrs.slack_channel,
-      attrs.slack_channels_count,
-      attrs.slack_group_id,
-      attrs.slack_workspace_id
-    ];
-
-    return slackSignals.some((value) => value !== null && value !== undefined && value !== '');
+    return countSlackCoverageSignals(attrs) > 0;
   });
   const alertableTeams = teams.filter((team) => {
     const attrs = getTeamAttributes(team);
@@ -75,31 +120,34 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
   const userHasEscalationPolicy = currentUserTeams.some((team) => getRelationshipIds(team, 'escalation_policies').length > 0);
   const userTeamsWithSlack = currentUserTeams.filter((team) => {
     const attrs = getTeamAttributes(team);
-    return Boolean(attrs.slack_channel_id || attrs.slack_channel_name || attrs.slack_channel || attrs.slack_group_id);
+    return countSlackCoverageSignals(attrs) > 0;
   });
   const hasAnySlackConfigured = hasSlack || teamsWithSlack.length > 0 || userTeamsWithSlack.length > 0;
   const hasAnyAlertingReadyTeam = alertableTeams.length > 0;
   const hasAnyTeamMembership = currentUserTeams.length > 0;
+  const teamCount = teams.length;
+  const teamsWithSchedulesCount = teamsWithSchedules.length;
+  const teamsWithEscalationPoliciesCount = teamsWithEscalationPolicies.length;
+  const teamsWithSlackCount = teamsWithSlack.length;
+  const teamsWithMembersCount = teams.filter((team) => count(getRelationshipIds(team, 'users')) > 0).length;
 
   const nextBestAction = !hasTeams
     ? 'create-team'
-    : !hasUserTeam
+    : teamsWithMembersCount === 0
       ? 'invite-team-members'
-      : !userHasSchedule
+      : teamsWithSchedulesCount === 0
         ? 'create-schedule'
-        : !userHasEscalationPolicy
+        : teamsWithEscalationPoliciesCount === 0
           ? 'create-escalation-policy'
           : !hasAnyAlertingReadyTeam
             ? 'hook-up-monitor'
-            : !hasAnySlackConfigured
-              ? 'connect-slack'
-              : 'create-test-incident';
+            : 'run-guided-setup';
 
   const steps = {
-    createTeam: hasTeams ? 'maybe-needed' : 'needed',
-    inviteTeamMembers: hasUserTeam ? 'done' : 'needed',
-    createSchedule: userHasSchedule ? 'done' : 'needed',
-    createEscalationPolicy: userHasEscalationPolicy ? 'done' : 'needed',
+    createTeam: hasTeams ? 'done' : 'needed',
+    inviteTeamMembers: teamsWithMembersCount > 0 ? 'done' : 'needed',
+    createSchedule: teamsWithSchedulesCount > 0 ? 'done' : 'needed',
+    createEscalationPolicy: teamsWithEscalationPoliciesCount > 0 ? 'done' : 'needed',
     hookUpMonitor: hasAnyAlertingReadyTeam ? 'done' : 'needed',
     testPage: hasAnyAlertingReadyTeam ? 'maybe-needed' : 'blocked',
     connectSlack: hasAnySlackConfigured ? 'done' : 'needed',
@@ -108,21 +156,18 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
 
   const readiness = {
     workspaceSetup: summarizeStage(
-      [hasTeams, hasAnyTeamMembership].filter(Boolean).length,
-      2
+      [hasTeams].filter(Boolean).length,
+      1
     ),
-    groupSetup: summarizeStage(
-      [hasUserTeam, userHasSchedule, userHasEscalationPolicy].filter(Boolean).length,
-      3
+    groupSetup: teamCoverageLabel(
+      teamsWithMembersCount + teamsWithSchedulesCount + teamsWithEscalationPoliciesCount,
+      teamCount * 3
     ),
     alertingSetup: summarizeStage(
       [hasAnyAlertingReadyTeam, hasAnySchedules, hasAnyEscalationPolicies].filter(Boolean).length,
       3
     ),
-    incidentSetup: summarizeStage(
-      [hasAnySlackConfigured, hasAnySlackConfigured && nextBestAction === 'create-test-incident'].filter(Boolean).length,
-      2
-    )
+    incidentSetup: teamsWithSlackCount > 0 || hasSlack ? 'done' : 'needed'
   };
 
   return {
@@ -142,9 +187,22 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
       }))
     },
     teams: {
+      workspace: {
+        id: workspace?.id || workspaceId || null,
+        name: workspace?.attributes?.name || inferredWorkspaceName(userPayload),
+        slug: workspace?.attributes?.slug || null
+      },
       total: teams.length,
       hasTeams,
       hasAnyTeamMembership,
+      all: teams.map((team) => ({
+        id: team.id,
+        name: team.attributes?.name,
+        userIds: getRelationshipIds(team, 'users'),
+        memberCount: count(team?.relationships?.users?.data),
+        scheduleCount: count(team?.relationships?.schedules?.data),
+        escalationPolicyCount: count(team?.relationships?.escalation_policies?.data)
+      })),
       userTeams: currentUserTeams.map((team) => ({
         id: team.id,
         name: team.attributes?.name,
@@ -155,18 +213,17 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
       hasAnyEscalationPolicies,
       hasAnySlackConfigured,
       hasAnyAlertingReadyTeam,
+      teamsWithMembers: teamsWithMembersCount,
       teamsWithSchedules: teamsWithSchedules.length,
       teamsWithEscalationPolicies: teamsWithEscalationPolicies.length,
       teamsWithSlack: teamsWithSlack.length
     },
     onboarding: {
       completed:
-        nextBestAction === 'create-test-incident' &&
-        hasAnySlackConfigured &&
+        nextBestAction === 'run-guided-setup' &&
         hasAnySchedules &&
         hasAnyEscalationPolicies &&
-        hasAnyAlertingReadyTeam &&
-        hasAnyTeamMembership,
+        hasAnyAlertingReadyTeam,
       nextBestAction,
       readiness,
       steps

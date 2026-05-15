@@ -12,7 +12,7 @@ This project aims to provide a guided setup flow that:
 
 - reduces onboarding friction for new customers
 - gives Sales and Solutions a simple activation path during trials
-- helps customers configure common integrations without navigating multiple UI surfaces
+- helps customers move through common integrations without navigating Rootly blindly
 - creates a foundation for repeatable setup and expansion workflows
 
 The intended experience is:
@@ -38,7 +38,8 @@ For MVP, the wizard should optimize for fast time-to-value:
 
 - create sensible defaults
 - reduce product decision fatigue
-- prefer deterministic API-backed setup over complex AI behavior
+- prefer deterministic API-backed setup where available
+- use explicit Rootly web handoffs where integrations still live behind the app
 
 ## Goals
 
@@ -68,10 +69,11 @@ The MVP should focus on a narrow set of high-value setup tasks.
 ### In scope
 
 - guided account setup
-- Slack connection and basic Slack configuration
+- Slack handoff and resume flow
 - generic webhook alert source setup
 - alert verification / test paging
 - MCP / IDE configuration
+- status / doctor summary with recommended next step
 
 ### Out of scope for MVP
 
@@ -92,7 +94,7 @@ Suggested flow:
 4. Create an escalation policy with Rootly defaults
 5. Hook up a generic webhook alert source
 6. Test page
-7. Connect Slack for incidents
+7. Hand off to Rootly web for Slack connection
 8. Create a test incident
 9. Optionally configure MCP / IDE integration
 
@@ -122,9 +124,10 @@ The CLI should feel safe for a startup audience. Token-based auth is acceptable 
 The current implementation direction is:
 
 - CLI frontend for user interaction
-- Rootly APIs and existing service logic for execution
+- Rootly APIs for the setup objects they already expose
 - state detection to understand what is already configured
 - selective automation for local configuration tasks like MCP setup
+- explicit handoff back into the Rootly web app for integrations that do not have supported external APIs
 
 The guiding principle is:
 
@@ -136,14 +139,14 @@ That means the CLI may eventually use AI for recommendations, explanations, and 
 
 ### MVP priorities
 
-- Slack
+- Slack handoff / resume
 - generic webhook alert source setup
-- status pages
 - MCP / IDE setup
+- startup status / doctor flow
 
 ### Notes
 
-- Slack can likely use OAuth-based connection flows
+- Slack and vendor integrations should use the existing Rootly web flow until supported APIs exist
 - MCP setup uses the hosted Rootly MCP server and can write config files for supported clients
 - Supported MCP clients in the current MVP: Cursor, Claude Code, Claude Desktop, Windsurf, Codex
 - Rootly auth can come from a stored token or `ROOTLY_TOKEN`

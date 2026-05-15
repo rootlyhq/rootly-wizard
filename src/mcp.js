@@ -8,6 +8,17 @@ function stringifyConfig(config) {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
+function mergeMcpServers(existing, incoming) {
+  return {
+    ...existing,
+    ...incoming,
+    mcpServers: {
+      ...(existing?.mcpServers || {}),
+      ...(incoming?.mcpServers || {})
+    }
+  };
+}
+
 function hostedJsonConfig(token) {
   return {
     mcpServers: {
@@ -118,6 +129,19 @@ async function ensureParentDir(filePath) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 }
 
+async function maybeBackupFile(filePath) {
+  try {
+    await fs.access(filePath);
+  } catch {
+    return null;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = `${filePath}.bak.${stamp}`;
+  await fs.copyFile(filePath, backupPath);
+  return backupPath;
+}
+
 async function readExistingJson(filePath) {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
@@ -140,19 +164,17 @@ export function buildHostedMcpPreview(client, tokenType) {
 export async function writeHostedMcpConfig(client, token) {
   const targetPath = configFileForClient(client);
   await ensureParentDir(targetPath);
+  const backupPath = await maybeBackupFile(targetPath);
 
   if (client === 'Codex') {
     await fs.writeFile(targetPath, codexConfig(), 'utf8');
-    return targetPath;
+    return { targetPath, backupPath };
   }
 
   const existing = await readExistingJson(targetPath);
-  const merged = {
-    ...existing,
-    ...JSON.parse(configForClient(client, token))
-  };
+  const merged = mergeMcpServers(existing, JSON.parse(configForClient(client, token)));
   await fs.writeFile(targetPath, stringifyConfig(merged), 'utf8');
-  return targetPath;
+  return { targetPath, backupPath };
 }
 
 export function getMcpConfigPath(client) {
