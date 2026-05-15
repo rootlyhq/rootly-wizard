@@ -5,14 +5,17 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
-import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { detectOnboardingState } from './detect-state.js';
 
-const rl = readline.createInterface({ input, output });
+function createInterface() {
+  return readline.createInterface({ input, output });
+}
+
+let rl = createInterface();
 const LOGO_ART = [
   '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
   '⠀⠀⠀⠀⠀⠀⠀⠀⢠⣤⣄⡀⠐⣿⣿⠇⢀⣠⣤⡄⠀⠀⠀⠀⠀⠀⠀⠀',
@@ -144,30 +147,54 @@ async function askHidden(question) {
     return answer.trim();
   }
 
-  const mutableOutput = new Writable({
-    write(chunk, encoding, callback) {
-      if (!mutableOutput.muted) {
-        output.write(chunk, encoding);
-      }
-      callback();
-    }
-  });
-  mutableOutput.muted = false;
-
-  const hiddenRl = readline.createInterface({
-    input,
-    output: mutableOutput,
-    terminal: true
-  });
-
   try {
-    mutableOutput.muted = true;
+    rl.pause();
     output.write(`${tone(question, FG_SLATE)}: `);
-    const answer = await hiddenRl.question('');
+    if (typeof input.setRawMode === 'function') {
+      input.setRawMode(true);
+    }
+    input.resume();
+
+    const answer = await new Promise((resolve) => {
+      let value = '';
+
+      const onData = (chunk) => {
+        const text = chunk.toString('utf8');
+
+        if (text === '\r' || text === '\n') {
+          input.off('data', onData);
+          resolve(value.trim());
+          return;
+        }
+
+        if (text === '\u0003') {
+          input.off('data', onData);
+          rl.close();
+          process.exit(1);
+        }
+
+        if (text === '\u007f' || text === '\b') {
+          value = value.slice(0, -1);
+          return;
+        }
+
+        if (text.startsWith('\u001b')) {
+          return;
+        }
+
+        value += text;
+      };
+
+      input.on('data', onData);
+    });
+
     output.write('\n');
-    return answer.trim();
+    return answer;
   } finally {
-    hiddenRl.close();
+    if (typeof input.setRawMode === 'function') {
+      input.setRawMode(false);
+    }
+    rl.resume();
   }
 }
 
@@ -768,7 +795,7 @@ async function runWorkspaceSetup(state) {
   try {
     teamPayload = await api.createTeam({
       name: teamName,
-      description: `Created by Rootly Wizard for ${ownerEmail}`,
+      description: 'Created during Rootly setup',
       notify_emails: memberEmails,
       user_ids: [currentUserId, ...resolvedMemberIds].filter(Boolean),
       admin_ids: [currentUserId].filter(Boolean),
@@ -1004,7 +1031,7 @@ async function createTeamSetup() {
   }
 
   const teamName = await ask('Team name', 'Payments');
-  const description = await ask('Description', `Created by Rootly Wizard for ${currentUserEmail}`);
+  const description = await ask('Description', 'Created during Rootly setup');
 
   const confirm = await ask('Create this team now? (yes/no)', 'yes');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1207,40 +1234,20 @@ async function createEscalationPolicySetup() {
 
 async function slackSetup() {
   heading('Connect Slack for incidents');
-  console.log('Connect Slack in Rootly, then come back here for the incident smoke test.');
+  console.log('Slack still uses the existing Rootly web flow.');
   separator();
 
   const state = await loadOnboardingState();
   if (state) {
-    printOnboardingState(state);
+    printStartupStatus(state);
   }
 
-  if (state?.user.slackConnected) {
-    const channel = await ask('Default incident channel', '#incidents');
-    const testIncident = state?.onboarding.steps.createTestIncident === 'blocked'
-      ? 'no'
-      : await ask('Create a test incident after Slack is connected? (yes/no)', 'yes');
+  await resumeAfterWebSetup('Slack', { detectable: false });
 
-    printSummary('Incident setup summary', [
-      'Slack: already connected',
-      `Default channel: ${channel}`,
-      testIncident.toLowerCase().startsWith('y') ? 'Test incident: requested' : 'Test incident: skipped',
-      'Next step: run a test incident in Slack'
-    ]);
-    return;
-  }
-
-  const updatedState = await resumeAfterWebSetup('Slack');
-  const channel = await ask('Default incident channel', '#incidents');
-  const testIncident = updatedState?.onboarding.steps.createTestIncident === 'blocked'
-    ? 'no'
-    : await ask('Create a test incident after Slack is connected? (yes/no)', 'yes');
-
-  printSummary('Incident setup summary', [
-    `Default channel: ${channel}`,
-    updatedState?.user.slackConnected ? 'Slack: now connected' : 'Slack: still needs web setup',
-    testIncident.toLowerCase().startsWith('y') ? 'Test incident: requested' : 'Test incident: skipped',
-    testIncident.toLowerCase().startsWith('y') ? 'Next step: create a test incident in Slack' : 'Next step: return when you are ready to test incident collaboration'
+  printSummary('Slack setup summary', [
+    'Slack setup was handed off to Rootly web.',
+    'The wizard does not verify Slack directly.',
+    'Next step: return to this flow after Slack is configured if you want to continue incident setup manually.'
   ]);
 }
 
@@ -1424,49 +1431,54 @@ async function main() {
     ]);
   }
 
-  const state = await loadOnboardingState();
-  if (state) {
-    console.log('Checking your Rootly setup...');
+  while (true) {
+    const state = await loadOnboardingState();
+    if (state) {
+      console.log('Checking your Rootly setup...');
+      separator();
+      printStartupStatus(state);
+    }
+
+    const checkpoint = await readSessionCheckpoint();
+    if (checkpoint?.kind === 'web-handoff') {
+      printSummary('Resume available', [
+        `Pending handoff: ${checkpoint.integration}`,
+        `Resume with: node ./src/cli.js resume`
+      ]);
+    }
+
+    const action = await chooseMenuAction(state);
+
     separator();
-    printStartupStatus(state);
-  }
 
-  const checkpoint = await readSessionCheckpoint();
-  if (checkpoint?.kind === 'web-handoff') {
-    printSummary('Resume available', [
-      `Pending handoff: ${checkpoint.integration}`,
-      `Resume with: node ./src/cli.js resume`
-    ]);
-  }
+    if (action === 'Run guided setup') {
+      await accountSetup();
+    } else if (action === 'Check readiness') {
+      await readinessFlow();
+    } else if (action === 'View teams') {
+      await teamsFlow();
+    } else if (action === 'Create a team') {
+      await createTeamSetup();
+    } else if (action === 'Add team members') {
+      await addTeamMembersSetup();
+    } else if (action === 'Create a schedule') {
+      await createScheduleSetup();
+    } else if (action === 'Create an escalation policy') {
+      await createEscalationPolicySetup();
+    } else if (action === 'Connect Slack for incidents') {
+      await slackSetup();
+    } else if (action === 'Hook up a monitor') {
+      await alertSourceSetup();
+    } else if (action === 'Connect vendor integration in Rootly web') {
+      await vendorHandoffSetup();
+    } else if (action === 'Disconnect') {
+      await logoutFlow();
+      break;
+    } else {
+      await mcpSetup();
+    }
 
-  const action = await chooseMenuAction(state);
-
-  separator();
-
-  if (action === 'Run guided setup') {
-    await accountSetup();
-  } else if (action === 'Check readiness') {
-    await readinessFlow();
-  } else if (action === 'View teams') {
-    await teamsFlow();
-  } else if (action === 'Create a team') {
-    await createTeamSetup();
-  } else if (action === 'Add team members') {
-    await addTeamMembersSetup();
-  } else if (action === 'Create a schedule') {
-    await createScheduleSetup();
-  } else if (action === 'Create an escalation policy') {
-    await createEscalationPolicySetup();
-  } else if (action === 'Connect Slack for incidents') {
-    await slackSetup();
-  } else if (action === 'Hook up a monitor') {
-    await alertSourceSetup();
-  } else if (action === 'Connect vendor integration in Rootly web') {
-    await vendorHandoffSetup();
-  } else if (action === 'Disconnect') {
-    await logoutFlow();
-  } else {
-    await mcpSetup();
+    separator();
   }
 
   rl.close();

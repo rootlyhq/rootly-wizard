@@ -150,8 +150,8 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
     createEscalationPolicy: teamsWithEscalationPoliciesCount > 0 ? 'done' : 'needed',
     hookUpMonitor: hasAnyAlertingReadyTeam ? 'done' : 'needed',
     testPage: hasAnyAlertingReadyTeam ? 'maybe-needed' : 'blocked',
-    connectSlack: hasAnySlackConfigured ? 'done' : 'needed',
-    createTestIncident: hasAnySlackConfigured ? 'maybe-needed' : 'blocked'
+    connectSlack: hasAnySlackConfigured ? 'maybe-needed' : 'needed',
+    createTestIncident: 'maybe-needed'
   };
 
   const readiness = {
@@ -167,7 +167,7 @@ export function detectOnboardingState({ userPayload, teamsPayload, schedulesPayl
       [hasAnyAlertingReadyTeam, hasAnySchedules, hasAnyEscalationPolicies].filter(Boolean).length,
       3
     ),
-    incidentSetup: teamsWithSlackCount > 0 || hasSlack ? 'done' : 'needed'
+    incidentSetup: teamsWithSlackCount > 0 || hasSlack ? 'in-progress' : 'needed'
   };
 
   return {
