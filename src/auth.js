@@ -47,5 +47,9 @@ export async function validateToken(token, baseUrl = 'https://api.rootly.com') {
     }
   });
 
-  return response.ok;
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json();
 }

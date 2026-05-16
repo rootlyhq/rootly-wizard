@@ -135,6 +135,46 @@ function printTeamList(title, teams) {
   separator();
 }
 
+function printScheduleList(title, schedules) {
+  heading(title);
+
+  if (!schedules?.length) {
+    console.log(`${tone('•', FG_SLATE)} No schedules found`);
+    separator();
+    return;
+  }
+
+  schedules.forEach((schedule) => {
+    const attrs = schedule.attributes || {};
+    const owners = Array.isArray(attrs.owner_group_ids) && attrs.owner_group_ids.length > 0
+      ? `${attrs.owner_group_ids.length} team${attrs.owner_group_ids.length === 1 ? '' : 's'}`
+      : 'no teams';
+    const coverage = attrs.all_time_coverage ? '24/7' : 'custom coverage';
+    console.log(`${tone('•', FG_SLATE)} ${(attrs.name || schedule.id)}  ·  ${coverage}  ·  ${owners}`);
+  });
+
+  separator();
+}
+
+function printEscalationPolicyList(title, policies) {
+  heading(title);
+
+  if (!policies?.length) {
+    console.log(`${tone('•', FG_SLATE)} No escalation policies found`);
+    separator();
+    return;
+  }
+
+  policies.forEach((policy) => {
+    const attrs = policy.attributes || {};
+    const teamCount = Array.isArray(attrs.group_ids) ? attrs.group_ids.length : 0;
+    const repeatCount = attrs.repeat_count ?? 0;
+    console.log(`${tone('•', FG_SLATE)} ${(attrs.name || policy.id)}  ·  ${teamCount} team${teamCount === 1 ? '' : 's'}  ·  repeats ${repeatCount} time${repeatCount === 1 ? '' : 's'}`);
+  });
+
+  separator();
+}
+
 async function ask(question, defaultValue = '') {
   const suffix = defaultValue ? ` (${defaultValue})` : '';
   const answer = await rl.question(`${tone(question, FG_SLATE)}${suffix}: `);
@@ -153,12 +193,34 @@ async function askHidden(question) {
     rl.close();
     try {
       spawnSync('stty', ['-echo'], { stdio: ['inherit', 'ignore', 'ignore'] });
-      const hiddenRl = createInterface();
       output.write(prompt);
-      const answer = await hiddenRl.question('');
-      hiddenRl.close();
+      const answer = await new Promise((resolve) => {
+        let value = '';
+
+        const onData = (chunk) => {
+          const text = chunk.toString('utf8');
+
+          if (text === '\u0003') {
+            input.off('data', onData);
+            spawnSync('stty', ['echo'], { stdio: ['inherit', 'ignore', 'ignore'] });
+            process.exit(1);
+          }
+
+          if (text.includes('\n') || text.includes('\r')) {
+            input.off('data', onData);
+            value += text.replace(/[\r\n]+/g, '');
+            resolve(value.trim());
+            return;
+          }
+
+          value += text;
+        };
+
+        input.resume();
+        input.on('data', onData);
+      });
       output.write('\n');
-      return answer.trim();
+      return answer;
     } finally {
       spawnSync('stty', ['echo'], { stdio: ['inherit', 'ignore', 'ignore'] });
       rl = createInterface();
@@ -350,6 +412,25 @@ function humanizeAction(action) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function inferWorkspaceNameFromUserPayload(userPayload) {
+  const explicitName =
+    userPayload?.data?.attributes?.current_team_name ||
+    userPayload?.data?.attributes?.team_name ||
+    null;
+
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const decorated = userPayload?.data?.attributes?.full_name_with_team || '';
+  const match = decorated.match(/^\[(.+?)\]/);
+  return match?.[1] || null;
+}
+
 async function getActiveToken() {
   return process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken()) || null;
 }
@@ -466,7 +547,7 @@ async function chooseMenuAction(state) {
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
-    { label: 'Inspect (readiness and teams)', action: 'Inspect' },
+    { label: 'Inspect (readiness, teams, schedules)', action: 'Inspect' },
     { label: 'Disconnect', action: 'Disconnect' },
     { label: 'Exit wizard', action: 'Exit wizard' }
   ]);
@@ -481,7 +562,8 @@ async function chooseMenuAction(state) {
       { label: 'Create a team', action: 'Create a team' },
       { label: 'Add team members', action: 'Add team members' },
       { label: 'Create a schedule', action: 'Create a schedule' },
-      { label: 'Create an escalation policy', action: 'Create an escalation policy' }
+      { label: 'Create an escalation policy', action: 'Create an escalation policy' },
+      { label: 'Back to main menu', action: 'Back' }
     ]);
     return setupAction.action;
   }
@@ -490,7 +572,8 @@ async function chooseMenuAction(state) {
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
       { label: 'Hook up a monitor', action: 'Hook up a monitor' },
-      { label: 'Connect vendor integration in Rootly web', action: 'Connect vendor integration in Rootly web' }
+      { label: 'Connect vendor integration in Rootly web', action: 'Connect vendor integration in Rootly web' },
+      { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
   }
@@ -505,7 +588,10 @@ async function chooseMenuAction(state) {
   if (category.action === 'Inspect') {
     const inspectAction = await choose('Inspect', [
       { label: 'Check readiness', action: 'Check readiness' },
-      { label: 'View teams', action: 'View teams' }
+      { label: 'View teams', action: 'View teams' },
+      { label: 'View schedules', action: 'View schedules' },
+      { label: 'View escalation policies', action: 'View escalation policies' },
+      { label: 'Back to main menu', action: 'Back' }
     ]);
     return inspectAction.action;
   }
@@ -621,6 +707,7 @@ async function authFlow() {
   heading('Sign in');
   console.log('Generate an organization API key in Rootly: Organization dropdown > Organization Settings > API Keys > Generate New API Key.');
   console.log('This wizard works best with an organization-wide key.');
+  console.log('Input key here:');
   separator();
 
   const envToken = process.env.ROOTLY_TOKEN?.trim();
@@ -641,13 +728,18 @@ async function authFlow() {
     }
   }
 
-  const token = await askHidden('Paste your admin org-wide Rootly API key');
+  const token = await askHidden('Rootly API key');
   const baseUrl = process.env.ROOTLY_API_BASE_URL?.trim() || 'https://api.rootly.com';
 
   console.log('Validating token...');
-  const isValid = await validateToken(token, baseUrl);
+  const validationStartedAt = Date.now();
+  const userPayload = await validateToken(token, baseUrl);
+  const validationElapsed = Date.now() - validationStartedAt;
+  if (validationElapsed < 3000) {
+    await sleep(3000 - validationElapsed);
+  }
 
-  if (!isValid) {
+  if (!userPayload) {
     printSummary('Auth failed', [
       'Token did not validate against Rootly',
       'Nothing was stored'
@@ -657,11 +749,33 @@ async function authFlow() {
     return null;
   }
 
+  let verifiedAccess = [];
+  try {
+    const api = new RootlyApiClient(token, baseUrl);
+    await Promise.all([
+      api.listTeams(),
+      api.listSchedules(),
+      api.listEscalationPolicies()
+    ]);
+    verifiedAccess = ['Teams', 'Schedules', 'Escalation policies'];
+  } catch {
+    verifiedAccess = ['User profile'];
+  }
+
   const stored = await storeToken(token);
+  const identityName =
+    userPayload?.data?.attributes?.full_name ||
+    userPayload?.data?.attributes?.name ||
+    userPayload?.data?.attributes?.email ||
+    'Unknown';
+  const workspaceName = inferWorkspaceNameFromUserPayload(userPayload);
   printSummary('Auth complete', [
     'Token validated successfully',
+    `API identity: ${identityName}`,
+    workspaceName ? `Workspace: ${workspaceName}` : null,
+    `Verified access: ${verifiedAccess.join(', ')}`,
     stored ? 'Token stored securely in the system keychain' : 'Token validated, but local secret storage was unavailable'
-  ]);
+  ].filter(Boolean));
 
   return token;
 }
@@ -724,6 +838,56 @@ async function teamsFlow() {
   ]);
 
   printTeamList('Teams', state.teams.all);
+}
+
+async function schedulesFlow() {
+  const token = await getActiveToken();
+  if (!token) {
+    printSummary('Schedules', ['No auth context found. Authenticate first to inspect schedules.']);
+    return;
+  }
+
+  const api = new RootlyApiClient(token);
+  const schedulesPayload = await api.listSchedules();
+  const schedules = schedulesPayload?.data || [];
+
+  const schedulesWithCoverage = schedules.filter((schedule) => schedule?.attributes?.all_time_coverage).length;
+  const schedulesWithTeams = schedules.filter((schedule) =>
+    Array.isArray(schedule?.attributes?.owner_group_ids) && schedule.attributes.owner_group_ids.length > 0
+  ).length;
+
+  printKeyValuePanel('Schedule summary', [
+    { label: 'Schedules', value: String(schedules.length) },
+    { label: '24/7 coverage', value: `${schedulesWithCoverage}/${schedules.length}` },
+    { label: 'Mapped to teams', value: `${schedulesWithTeams}/${schedules.length}` }
+  ]);
+
+  printScheduleList('Schedules', schedules);
+}
+
+async function escalationPoliciesFlow() {
+  const token = await getActiveToken();
+  if (!token) {
+    printSummary('Escalation policies', ['No auth context found. Authenticate first to inspect escalation policies.']);
+    return;
+  }
+
+  const api = new RootlyApiClient(token);
+  const policiesPayload = await api.listEscalationPolicies();
+  const policies = policiesPayload?.data || [];
+
+  const policiesWithTeams = policies.filter((policy) =>
+    Array.isArray(policy?.attributes?.group_ids) && policy.attributes.group_ids.length > 0
+  ).length;
+  const repeatingPolicies = policies.filter((policy) => (policy?.attributes?.repeat_count ?? 0) > 0).length;
+
+  printKeyValuePanel('Escalation policy summary', [
+    { label: 'Policies', value: String(policies.length) },
+    { label: 'Mapped to teams', value: `${policiesWithTeams}/${policies.length}` },
+    { label: 'Repeating', value: `${repeatingPolicies}/${policies.length}` }
+  ]);
+
+  printEscalationPolicyList('Escalation policies', policies);
 }
 
 async function readinessFlow() {
@@ -1505,14 +1669,22 @@ async function main() {
 
     separator();
 
-  if (action === 'Review remaining setup') {
-    await continueRecommendedSetup(state);
-  } else if (action === 'Run guided setup') {
-    await accountSetup();
-  } else if (action === 'Check readiness') {
-    await readinessFlow();
+    if (action === 'Back') {
+      continue;
+    }
+
+    if (action === 'Review remaining setup') {
+      await continueRecommendedSetup(state);
+    } else if (action === 'Run guided setup') {
+      await accountSetup();
+    } else if (action === 'Check readiness') {
+      await readinessFlow();
     } else if (action === 'View teams') {
       await teamsFlow();
+    } else if (action === 'View schedules') {
+      await schedulesFlow();
+    } else if (action === 'View escalation policies') {
+      await escalationPoliciesFlow();
     } else if (action === 'Create a team') {
       await createTeamSetup();
     } else if (action === 'Add team members') {
@@ -1531,6 +1703,7 @@ async function main() {
       await logoutFlow();
       break;
     } else if (action === 'Exit wizard') {
+      printSummary('Goodbye', ['Thanks for using Rootly Wizard.']);
       break;
     } else {
       await mcpSetup();
