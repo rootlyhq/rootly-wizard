@@ -7,7 +7,7 @@ import readline from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
-import { deleteToken, getStoredToken, storeToken, validateToken } from './auth.js';
+import { deleteToken, getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { detectOnboardingState } from './detect-state.js';
 
@@ -705,12 +705,11 @@ async function resumeAfterWebSetup(kind, options = {}) {
 
 async function authFlow() {
   heading('Sign in');
-  console.log('Generate an organization API key in Rootly: Organization dropdown > Organization Settings > API Keys > Generate New API Key.');
-  console.log('This wizard works best with an organization-wide key.');
-  console.log('Input key here:');
+  console.log('Choose a sign-in method for this Rootly workspace.');
   separator();
 
   const envToken = process.env.ROOTLY_TOKEN?.trim();
+  const authSummary = await getAuthSummary();
   const existingToken = await getStoredToken();
   if (envToken) {
     printSummary('Auth', [
@@ -720,38 +719,82 @@ async function authFlow() {
     return envToken;
   }
 
-  if (existingToken) {
-    const reuse = await ask('A Rootly token is already stored. Reuse it? (yes/no)', 'yes');
+  if (existingToken && authSummary) {
+    const reuse = await ask(`${authSummary.label}. Reuse it? (yes/no)`, 'yes');
     if (reuse.toLowerCase().startsWith('y')) {
-      printSummary('Auth', ['Stored token found in keychain', 'Reusing existing token']);
+      printSummary('Auth', [authSummary.label, 'Reusing existing sign-in']);
       return existingToken;
     }
   }
 
-  const token = await askHidden('Rootly API key');
+  const method = await choose('Sign in with Rootly', [
+    { label: 'Browser sign-in (recommended)', action: 'oauth' },
+    { label: 'API key', action: 'api-key' }
+  ]);
+
   const baseUrl = process.env.ROOTLY_API_BASE_URL?.trim() || 'https://api.rootly.com';
 
-  console.log('Validating token...');
-  const validationStartedAt = Date.now();
-  const userPayload = await validateToken(token, baseUrl);
-  const validationElapsed = Date.now() - validationStartedAt;
-  if (validationElapsed < 3000) {
-    await sleep(3000 - validationElapsed);
-  }
+  let userPayload;
+  let stored = false;
+  let authSuccessLine = 'Token validated successfully';
 
-  if (!userPayload) {
-    printSummary('Auth failed', [
-      'Token did not validate against Rootly',
-      'Nothing was stored'
-    ]);
-    rl.close();
-    process.exitCode = 1;
-    return null;
+  if (method.action === 'oauth') {
+    console.log('Opening browser for authentication...');
+    console.log('Waiting for Rootly authorization...');
+    const authStartedAt = Date.now();
+
+    try {
+      const result = await startOAuthLogin(baseUrl);
+      userPayload = result.userPayload;
+      stored = result.stored;
+      authSuccessLine = 'Browser sign-in completed successfully';
+    } catch (error) {
+      const elapsed = Date.now() - authStartedAt;
+      if (elapsed < 3000) {
+        await sleep(3000 - elapsed);
+      }
+
+      printSummary('Auth failed', [
+        error?.message || 'Rootly browser sign-in did not complete',
+        'Nothing was stored'
+      ]);
+      rl.close();
+      process.exitCode = 1;
+      return null;
+    }
+  } else {
+    console.log('Generate an organization API key in Rootly: Organization dropdown > Organization Settings > API Keys > Generate New API Key.');
+    console.log('This wizard works best with an organization-wide key.');
+    console.log('Input key here:');
+    separator();
+
+    const token = await askHidden('Rootly API key');
+
+    console.log('Validating token...');
+    const validationStartedAt = Date.now();
+    userPayload = await validateToken(token, baseUrl);
+    const validationElapsed = Date.now() - validationStartedAt;
+    if (validationElapsed < 3000) {
+      await sleep(3000 - validationElapsed);
+    }
+
+    if (!userPayload) {
+      printSummary('Auth failed', [
+        'Token did not validate against Rootly',
+        'Nothing was stored'
+      ]);
+      rl.close();
+      process.exitCode = 1;
+      return null;
+    }
+
+    stored = await storeToken(token);
   }
 
   let verifiedAccess = [];
   try {
-    const api = new RootlyApiClient(token, baseUrl);
+    const accessToken = await getStoredToken();
+    const api = new RootlyApiClient(accessToken, baseUrl);
     await Promise.all([
       api.listTeams(),
       api.listSchedules(),
@@ -762,7 +805,6 @@ async function authFlow() {
     verifiedAccess = ['User profile'];
   }
 
-  const stored = await storeToken(token);
   const identityName =
     userPayload?.data?.attributes?.full_name ||
     userPayload?.data?.attributes?.name ||
@@ -770,14 +812,18 @@ async function authFlow() {
     'Unknown';
   const workspaceName = inferWorkspaceNameFromUserPayload(userPayload);
   printSummary('Auth complete', [
-    'Token validated successfully',
+    authSuccessLine,
     `API identity: ${identityName}`,
     workspaceName ? `Workspace: ${workspaceName}` : null,
     `Verified access: ${verifiedAccess.join(', ')}`,
-    stored ? 'Token stored securely in the system keychain' : 'Token validated, but local secret storage was unavailable'
+    stored
+      ? (method.action === 'oauth'
+        ? 'Browser session stored securely in the system keychain'
+        : 'Token stored securely in the system keychain')
+      : 'Authentication succeeded, but local secret storage was unavailable'
   ].filter(Boolean));
 
-  return token;
+  return await getStoredToken();
 }
 
 async function loadOnboardingState() {
@@ -1643,8 +1689,9 @@ async function main() {
       return;
     }
   } else {
+    const authSummary = await getAuthSummary();
     printSummary('Auth', [
-      process.env.ROOTLY_TOKEN?.trim() ? 'Using ROOTLY_TOKEN from environment' : 'Stored token found in keychain',
+      authSummary?.label || (process.env.ROOTLY_TOKEN?.trim() ? 'Using ROOTLY_TOKEN from environment' : 'Stored token found in keychain'),
       'Proceeding to onboarding state detection'
     ]);
   }
