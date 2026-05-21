@@ -116,6 +116,30 @@ export class RootlyApiClient {
     });
   }
 
+  async createAlert(attributes) {
+    return this.request('/v1/alerts', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'alerts',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createIncident(attributes) {
+    return this.request('/v1/incidents', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'incidents',
+          attributes
+        }
+      }
+    });
+  }
+
   async findUserByEmail(email) {
     const payload = await this.listUsers();
     return payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === email.toLowerCase()) || null;
