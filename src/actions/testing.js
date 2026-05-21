@@ -13,18 +13,32 @@ export async function createTestAlertAction({
   environmentIds = []
 } = {}) {
   const api = await loadApiClient();
+  const attributes = {
+    summary
+  };
 
-  const payload = await api.createAlert({
-    summary,
-    description,
-    source: 'rootly-wizard',
-    status: 'open',
-    group_ids: cleanIds(groupIds),
-    service_ids: cleanIds(serviceIds),
-    environment_ids: cleanIds(environmentIds),
-    started_at: new Date().toISOString(),
-    deduplication_key: `rootly-wizard-test-alert-${Date.now()}`
-  });
+  const cleanedDescription = String(description || '').trim();
+  const cleanedGroupIds = cleanIds(groupIds);
+  const cleanedServiceIds = cleanIds(serviceIds);
+  const cleanedEnvironmentIds = cleanIds(environmentIds);
+
+  if (cleanedDescription) {
+    attributes.description = cleanedDescription;
+  }
+
+  if (cleanedGroupIds.length) {
+    attributes.group_ids = cleanedGroupIds;
+  }
+
+  if (cleanedServiceIds.length) {
+    attributes.service_ids = cleanedServiceIds;
+  }
+
+  if (cleanedEnvironmentIds.length) {
+    attributes.environment_ids = cleanedEnvironmentIds;
+  }
+
+  const payload = await api.createAlert(attributes);
 
   return {
     ok: true,
@@ -32,7 +46,7 @@ export async function createTestAlertAction({
     data: {
       id: payload?.data?.id || null,
       summary,
-      description
+      description: cleanedDescription
     }
   };
 }
