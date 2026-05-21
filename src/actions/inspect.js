@@ -1,0 +1,141 @@
+import { getActiveToken, loadApiClient, loadOnboardingState } from '../runtime.js';
+
+export async function getStatusAction() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  return {
+    ok: true,
+    summary: 'Loaded workspace status.',
+    nextBestAction: state.onboarding.nextBestAction,
+    data: {
+      workspace: state.teams.workspace?.name || state.teams.workspace?.slug || 'Connected Rootly account',
+      teams: state.teams.total,
+      teamsWithMembers: state.teams.teamsWithMembers,
+      teamsWithSchedules: state.teams.teamsWithSchedules,
+      teamsWithEscalationPolicies: state.teams.teamsWithEscalationPolicies,
+      teamsWithSlackSignals: state.teams.teamsWithSlack,
+      readiness: state.onboarding.readiness
+    }
+  };
+}
+
+export async function getReadinessAction() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  return {
+    ok: true,
+    summary: 'Loaded onboarding readiness.',
+    nextBestAction: state.onboarding.nextBestAction,
+    data: {
+      workspace: state.teams.workspace,
+      onboarding: state.onboarding,
+      teams: state.teams
+    }
+  };
+}
+
+export async function getTeamsAction() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  return {
+    ok: true,
+    summary: 'Loaded teams.',
+    data: {
+      workspace: state.teams.workspace,
+      summary: {
+        total: state.teams.total,
+        teamsWithMembers: state.teams.teamsWithMembers,
+        teamsWithSchedules: state.teams.teamsWithSchedules,
+        teamsWithEscalationPolicies: state.teams.teamsWithEscalationPolicies,
+        teamsWithSlackSignals: state.teams.teamsWithSlack
+      },
+      teams: state.teams.all
+    }
+  };
+}
+
+export async function getSchedulesAction() {
+  const token = await getActiveToken();
+  if (!token) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  const api = await loadApiClient();
+  const schedulesPayload = await api.listSchedules();
+  const schedules = schedulesPayload?.data || [];
+
+  return {
+    ok: true,
+    summary: 'Loaded schedules.',
+    data: {
+      summary: {
+        total: schedules.length,
+        schedulesWithCoverage: schedules.filter((schedule) => schedule?.attributes?.all_time_coverage).length,
+        schedulesWithTeams: schedules.filter((schedule) =>
+          Array.isArray(schedule?.attributes?.owner_group_ids) && schedule.attributes.owner_group_ids.length > 0
+        ).length
+      },
+      schedules
+    }
+  };
+}
+
+export async function getEscalationPoliciesAction() {
+  const token = await getActiveToken();
+  if (!token) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  const api = await loadApiClient();
+  const policiesPayload = await api.listEscalationPolicies();
+  const policies = policiesPayload?.data || [];
+
+  return {
+    ok: true,
+    summary: 'Loaded escalation policies.',
+    data: {
+      summary: {
+        total: policies.length,
+        policiesWithTeams: policies.filter((policy) =>
+          Array.isArray(policy?.attributes?.group_ids) && policy.attributes.group_ids.length > 0
+        ).length,
+        repeatingPolicies: policies.filter((policy) => (policy?.attributes?.repeat_count ?? 0) > 0).length
+      },
+      policies
+    }
+  };
+}
