@@ -10,12 +10,13 @@ import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHo
 import { deleteToken, getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { getActiveToken, loadApiClient, loadOnboardingState } from './runtime.js';
-import { getEscalationPoliciesAction, getReadinessAction, getSchedulesAction, getStatusAction, getTeamsAction } from './actions/inspect.js';
+import { getEscalationPoliciesAction, getSchedulesAction, getTeamsAction } from './actions/inspect.js';
 import { addTeamMembersAction, createAlertSourceAction, createEscalationPolicyAction, createScheduleAction, createTeamAction, serializeActionError } from './actions/setup.js';
-import { openUrl, startWebHandoffAction, webHandoffUrl } from './actions/integrations.js';
-import { applyMcpSetupAction, previewMcpSetupAction } from './actions/mcp.js';
-import { getRecommendedNextStepAction, humanizeAction } from './actions/workflow.js';
+import { openUrl, webHandoffUrl } from './actions/integrations.js';
+import { humanizeAction } from './actions/workflow.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
+import { runGuidedSetupAction } from './actions/guided.js';
+import { ACTIONS, buildActionCatalog, describeAction, toStructuredError, validateInput } from './actions/registry.js';
 
 function createInterface() {
   return readline.createInterface({ input, output });
@@ -857,102 +858,65 @@ async function runWorkspaceSetup(state) {
     return;
   }
 
-  let teamId = null;
-  let memberIds = [];
-  let matchedEmails = [];
-  try {
-    const teamResult = await createTeamAction({
-      name: teamName,
-      memberEmails,
-      enableAlertsAndBroadcast: true
-    });
-    teamId = teamResult.data.id;
-    memberIds = teamResult.data.memberIds;
-    matchedEmails = teamResult.data.matchedUsers.map((user) => user.email).filter(Boolean);
-  } catch (error) {
-    const failure = serializeActionError(error, 'The wizard could not create the first team.');
+  const alertSourceChoice = await choose('Create or connect an alert source?', [
+    { label: 'Generic webhook' },
+    { label: 'Skip alert source for now' }
+  ]);
+  const includeAlertSource = alertSourceChoice.label === 'Generic webhook';
+
+  const result = await runGuidedSetupAction({ teamName, memberEmails, includeAlertSource });
+  const stepsByName = Object.fromEntries(result.data.steps.map((step) => [step.step, step]));
+
+  if (!result.ok) {
     printSummary('Workspace setup stopped', [
-      failure.summary,
-      `Rootly said: ${failure.error}`,
+      'The wizard could not create the first team.',
+      `Rootly said: ${stepsByName['create-team']?.error || 'unknown error'}`,
       'Please create the team in Rootly, then rerun the wizard.'
     ]);
     return;
   }
 
-  let scheduleId = null;
-  try {
-    const scheduleResult = await createScheduleAction({
-      teamId,
-      name: `${teamName} On-Call`,
-      memberIds
-    });
-    scheduleId = scheduleResult.data.scheduleId;
-  } catch (error) {
-    const failure = serializeActionError(error, 'The team was created, but the first schedule did not go through.');
+  if (stepsByName['create-schedule'] && !stepsByName['create-schedule'].ok) {
     printSummary('Schedule setup needs attention', [
-      failure.summary,
-      `Rootly said: ${failure.error}`,
+      'The team was created, but the first schedule did not go through.',
+      `Rootly said: ${stepsByName['create-schedule'].error}`,
       'You can keep going in Rootly web, then come back and resume.'
     ]);
   }
 
-  let escalationPolicyId = null;
-  try {
-    const escalationResult = await createEscalationPolicyAction({
-      teamId,
-      name: `${teamName} Default Escalation`,
-      repeatCount: 1,
-      createDefaultPath: Boolean(scheduleId)
-    });
-    escalationPolicyId = escalationResult.data.id;
-    if (escalationResult.data.pathError) {
-      printSummary('Escalation path note', [
-        'The escalation policy was created, but the default path was not added automatically.',
-        `Rootly said: ${escalationResult.data.pathError}`,
-        'You can add the first path in Rootly if needed.'
-      ]);
-    }
-  } catch (error) {
-    const failure = serializeActionError(error, 'The team exists, but the default escalation policy was not created.');
+  const escalationStep = stepsByName['create-escalation-policy'];
+  if (escalationStep && !escalationStep.ok) {
     printSummary('Escalation policy needs attention', [
-      failure.summary,
-      `Rootly said: ${failure.error}`,
+      'The team exists, but the default escalation policy was not created.',
+      `Rootly said: ${escalationStep.error}`,
       'You can create the escalation policy in Rootly and then keep going.'
+    ]);
+  } else if (escalationStep?.error) {
+    printSummary('Escalation path note', [
+      'The escalation policy was created, but the default path was not added automatically.',
+      `Rootly said: ${escalationStep.error}`,
+      'You can add the first path in Rootly if needed.'
     ]);
   }
 
-  let alertSourceSummary = 'not created';
-  const alertSourceChoice = await choose('Create or connect an alert source?', [
-    { label: 'Generic webhook' },
-    { label: 'Back to previous menu' }
-  ]);
-
-  if (alertSourceChoice.label === 'Back to previous menu') {
-    return;
-  }
-
-  try {
-    const sourceResult = await createAlertSourceAction({
-      teamId,
-      name: `${teamName} ${alertSourceChoice.label}`
-    });
-    alertSourceSummary = sourceResult.data.webhookEndpoint || sourceResult.data.secret || 'connected';
-  } catch (error) {
-    alertSourceSummary = 'needs manual follow-up';
-    const failure = serializeActionError(error, 'The generic webhook source was not created automatically.');
+  if (includeAlertSource && stepsByName['create-alert-source'] && !stepsByName['create-alert-source'].ok) {
     printSummary('Alert source needs attention', [
-      failure.summary,
-      `Rootly said: ${failure.error}`,
+      'The generic webhook source was not created automatically.',
+      `Rootly said: ${stepsByName['create-alert-source'].error}`,
       'You can connect the alert source in Rootly and then return for the paging test.'
     ]);
   }
 
+  const alertSourceSummary = result.data.alertSource
+    ? (result.data.alertSource.webhookEndpoint || 'connected')
+    : (includeAlertSource ? 'needs manual follow-up' : 'skipped');
+
   printSummary('What the wizard completed', buildHappyPathSummary([
     `Team: ${teamName}`,
-    teamId ? `Team ID: ${teamId}` : null,
-    `Matched existing users: ${matchedEmails.join(', ') || 'none'}`,
-    scheduleId ? `Schedule created: ${scheduleId}` : 'Schedule created: no',
-    escalationPolicyId ? `Escalation policy created: ${escalationPolicyId}` : 'Escalation policy created: no',
+    result.data.team?.id ? `Team ID: ${result.data.team.id}` : null,
+    `Matched existing users: ${result.data.matchedUsers.map((user) => user.email).filter(Boolean).join(', ') || 'none'}`,
+    result.data.schedule?.id ? `Schedule created: ${result.data.schedule.id}` : 'Schedule created: no',
+    result.data.escalationPolicy?.id ? `Escalation policy created: ${result.data.escalationPolicy.id}` : 'Escalation policy created: no',
     `Alert source: ${alertSourceSummary}`
   ]));
 
@@ -1553,81 +1517,92 @@ async function mcpSetup() {
   ]));
 }
 
+function emitAction(result) {
+  console.log(JSON.stringify(result, null, 2));
+}
+
 async function runActionCommand() {
   const actionName = process.argv[3];
   const rawInput = process.argv[4];
-  const inputPayload = rawInput ? JSON.parse(rawInput) : {};
 
-  let result;
-  try {
-    if (actionName === 'get-status') {
-      result = await getStatusAction();
-    } else if (actionName === 'get-readiness') {
-      result = await getReadinessAction();
-    } else if (actionName === 'list-teams') {
-      result = await getTeamsAction();
-    } else if (actionName === 'list-schedules') {
-      result = await getSchedulesAction();
-    } else if (actionName === 'list-escalation-policies') {
-      result = await getEscalationPoliciesAction();
-    } else if (actionName === 'get-recommended-next-step') {
-      result = await getRecommendedNextStepAction();
-    } else if (actionName === 'create-team') {
-      result = await createTeamAction(inputPayload);
-    } else if (actionName === 'add-team-members') {
-      result = await addTeamMembersAction(inputPayload);
-    } else if (actionName === 'create-schedule') {
-      result = await createScheduleAction(inputPayload);
-    } else if (actionName === 'create-escalation-policy') {
-      result = await createEscalationPolicyAction(inputPayload);
-    } else if (actionName === 'create-alert-source') {
-      result = await createAlertSourceAction(inputPayload);
-    } else if (actionName === 'create-test-alert') {
-      result = await createTestAlertAction(inputPayload);
-    } else if (actionName === 'create-test-incident') {
-      result = await createTestIncidentAction(inputPayload);
-    } else if (actionName === 'start-web-handoff') {
-      result = await startWebHandoffAction(inputPayload);
-    } else if (actionName === 'preview-mcp-setup') {
-      result = await previewMcpSetupAction(inputPayload);
-    } else if (actionName === 'apply-mcp-setup') {
-      result = await applyMcpSetupAction(inputPayload);
-    } else {
-      result = {
-        ok: false,
-        code: 'UNKNOWN_ACTION',
-        summary: `Unknown action: ${actionName || '(missing)'}`,
-        availableActions: [
-          'get-status',
-          'get-readiness',
-          'list-teams',
-          'list-schedules',
-          'list-escalation-policies',
-          'get-recommended-next-step',
-          'create-team',
-          'add-team-members',
-          'create-schedule',
-          'create-escalation-policy',
-          'create-alert-source',
-          'create-test-alert',
-          'create-test-incident',
-          'start-web-handoff',
-          'preview-mcp-setup',
-          'apply-mcp-setup'
-        ]
-      };
-    }
-  } catch (error) {
-    result = {
-      ok: false,
-      code: 'ACTION_FAILED',
-      summary: `Action ${actionName || '(missing)'} failed.`,
-      error: error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error',
-      data: null
-    };
+  if (actionName === 'list') {
+    emitAction({ ok: true, summary: 'Available actions.', data: { actions: buildActionCatalog() } });
+    return;
   }
 
-  console.log(JSON.stringify(result, null, 2));
+  if (actionName === 'describe') {
+    const described = describeAction(rawInput);
+    if (!described) {
+      emitAction({
+        ok: false,
+        code: 'UNKNOWN_ACTION',
+        summary: `Unknown action: ${rawInput || '(missing)'}`,
+        data: { actions: Object.keys(ACTIONS) }
+      });
+      return;
+    }
+    emitAction({ ok: true, summary: `Schema for ${rawInput}.`, data: described });
+    return;
+  }
+
+  const entry = ACTIONS[actionName];
+  if (!entry) {
+    emitAction({
+      ok: false,
+      code: 'UNKNOWN_ACTION',
+      summary: `Unknown action: ${actionName || '(missing)'}`,
+      data: {
+        actions: Object.keys(ACTIONS),
+        hint: 'Run `action list` for descriptions or `action describe <name>` for input schema.'
+      }
+    });
+    return;
+  }
+
+  let inputPayload;
+  try {
+    inputPayload = rawInput ? JSON.parse(rawInput) : {};
+  } catch {
+    emitAction({
+      ok: false,
+      code: 'BAD_INPUT',
+      summary: `Could not parse input for ${actionName}.`,
+      error: 'The input argument was not valid JSON.',
+      data: null
+    });
+    return;
+  }
+
+  const invalid = validateInput(entry.input, inputPayload);
+  if (invalid) {
+    emitAction({
+      ok: false,
+      code: 'VALIDATION',
+      summary: `Invalid input for ${actionName}.`,
+      field: invalid.field,
+      error: invalid.message,
+      retryable: false,
+      data: null
+    });
+    return;
+  }
+
+  if (entry.mutates && inputPayload.dryRun === true) {
+    const { dryRun, ...input } = inputPayload;
+    emitAction({
+      ok: true,
+      code: 'DRY_RUN',
+      summary: `Dry run: ${actionName} was not executed.`,
+      data: { action: actionName, mutates: true, input }
+    });
+    return;
+  }
+
+  try {
+    emitAction(await entry.handler(inputPayload));
+  } catch (error) {
+    emitAction(toStructuredError(actionName, error));
+  }
 }
 
 function printHelp() {
@@ -1642,10 +1617,12 @@ function printHelp() {
   console.log('  rootly-wizard resume          Resume a pending web handoff (e.g. Slack)');
   console.log('  rootly-wizard logout          Remove the stored token from the keychain');
   console.log('  rootly-wizard action <name> [json]   Run a single action non-interactively (JSON in/out)');
+  console.log('  rootly-wizard action list            List available actions (JSON)');
+  console.log('  rootly-wizard action describe <name> Show an action input schema (JSON)');
   console.log('  rootly-wizard help            Show this help');
   separator();
   console.log('Auth: set ROOTLY_TOKEN, or sign in on first run (browser or API key).');
-  console.log('Run `rootly-wizard action unknown` to list the available actions.');
+  console.log('Agents: pass {"dryRun": true} to any mutating action to preview without executing.');
 }
 
 function formatTopLevelError(error) {
