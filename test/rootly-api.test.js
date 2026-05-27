@@ -69,3 +69,22 @@ test('findUserByEmail returns null when no page contains the email', async () =>
     assert.equal(match, null);
   });
 });
+
+test('resource list helpers target the expected endpoints', async () => {
+  const seen = [];
+  await withFetch(async (url) => {
+    seen.push(url.toString());
+    return jsonResponse({ data: [] });
+  }, async () => {
+    const api = new RootlyApiClient('tok');
+    await api.listServices();
+    await api.listSeverities();
+    await api.listEnvironments();
+    await api.listIncidentTypes();
+  });
+
+  assert.ok(seen.some((href) => href.endsWith('/v1/services')));
+  assert.ok(seen.some((href) => href.endsWith('/v1/severities')));
+  assert.ok(seen.some((href) => href.endsWith('/v1/environments')));
+  assert.ok(seen.some((href) => href.endsWith('/v1/incident_types')));
+});
