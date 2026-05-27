@@ -133,6 +133,34 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
   };
 }
 
+export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'webhook' }) {
+  const api = await loadApiClient();
+
+  const payload = await api.createAlertSource({
+    name,
+    source_type: sourceType,
+    owner_group_ids: teamId ? [teamId] : [],
+    sourceable_attributes: {
+      auto_resolve: false,
+      accept_threaded_emails: false
+    }
+  });
+
+  const attributes = payload?.data?.attributes || {};
+
+  return {
+    ok: true,
+    summary: `Created alert source ${name}.`,
+    data: {
+      id: payload?.data?.id || null,
+      name,
+      teamId: teamId || null,
+      webhookEndpoint: attributes.webhook_endpoint || null,
+      secret: attributes.secret || null
+    }
+  };
+}
+
 export function serializeActionError(error, fallbackSummary) {
   return {
     ok: false,

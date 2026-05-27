@@ -54,7 +54,7 @@ export async function startWebHandoffAction({ kind, open = false, appBaseUrl } =
       kind,
       url,
       opened,
-      detectable: kind === 'Slack' ? false : false
+      detectable: kind === 'Slack'
     }
   };
 }

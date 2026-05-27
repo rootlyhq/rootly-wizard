@@ -1,3 +1,5 @@
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
 export class RootlyApiClient {
   constructor(token, baseUrl = 'https://api.rootly.com') {
     this.token = token;
@@ -13,6 +15,7 @@ export class RootlyApiClient {
         ...(options.body ? { 'Content-Type': 'application/vnd.api+json' } : {}),
         ...(options.headers || {})
       },
+      signal: options.signal || AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS),
       ...(options.body ? { body: JSON.stringify(options.body) } : {})
     });
 
@@ -141,7 +144,21 @@ export class RootlyApiClient {
   }
 
   async findUserByEmail(email) {
-    const payload = await this.listUsers();
-    return payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === email.toLowerCase()) || null;
+    const target = String(email).toLowerCase();
+    let next = '/v1/users';
+    let pagesScanned = 0;
+
+    while (next && pagesScanned < 100) {
+      pagesScanned += 1;
+      const payload = await this.request(next);
+      const match = payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === target);
+      if (match) {
+        return match;
+      }
+
+      next = payload?.links?.next || null;
+    }
+
+    return null;
   }
 }
