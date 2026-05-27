@@ -7,6 +7,7 @@ import {
   getServicesAction,
   getSeveritiesAction,
   getStatusAction,
+  getTeamMembersAction,
   getTeamsAction,
   getUsersAction
 } from './inspect.js';
@@ -92,6 +93,14 @@ export const ACTIONS = {
     description: 'Users as {id, email, name} (first page) for resolving members.',
     input: {},
     handler: getUsersAction
+  },
+  'list-team-members': {
+    mutates: false,
+    description: 'Members ({id, email, name}) of a specific team.',
+    input: {
+      teamId: { type: 'string', required: true, description: 'Team ID.' }
+    },
+    handler: getTeamMembersAction
   },
   'create-team': {
     mutates: true,

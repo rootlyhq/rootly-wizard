@@ -3,7 +3,7 @@ process.env.ROOTLY_TOKEN = 'test-token';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runGuidedSetupAction } from '../src/actions/guided.js';
-import { getServicesAction, getUsersAction } from '../src/actions/inspect.js';
+import { getServicesAction, getUsersAction, getTeamMembersAction } from '../src/actions/inspect.js';
 
 const originalFetch = globalThis.fetch;
 
@@ -99,4 +99,29 @@ test('list actions map resources to {id, name} / {id, email}', async () => {
 
   const users = await getUsersAction();
   assert.deepEqual(users.data.items, [{ id: 'u1', email: 'a@b.com', name: 'A B' }]);
+});
+
+test('getTeamMembersAction resolves a team\'s members from included users', async () => {
+  installFetch((req) => {
+    if (req.href.includes('/v1/teams/t1')) {
+      return {
+        body: {
+          data: { id: 't1', attributes: { name: 'Payments' }, relationships: { users: { data: [{ id: 'u1' }, { id: 'u2' }] } } },
+          included: [
+            { id: 'u1', type: 'users', attributes: { email: 'a@b.com', full_name: 'A B' } },
+            { id: 'u2', type: 'users', attributes: { email: 'c@d.com', full_name: 'C D' } }
+          ]
+        }
+      };
+    }
+    return { body: {} };
+  });
+
+  const result = await getTeamMembersAction({ teamId: 't1' });
+  assert.equal(result.data.teamName, 'Payments');
+  assert.equal(result.data.total, 2);
+  assert.deepEqual(result.data.members, [
+    { id: 'u1', email: 'a@b.com', name: 'A B' },
+    { id: 'u2', email: 'c@d.com', name: 'C D' }
+  ]);
 });

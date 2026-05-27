@@ -35,6 +35,10 @@ export class RootlyApiClient {
     return this.request('/v1/teams?include=users,schedules,escalation_policies');
   }
 
+  async getTeam(id) {
+    return this.request(`/v1/teams/${id}?include=users`);
+  }
+
   async listUsers() {
     return this.request('/v1/users');
   }

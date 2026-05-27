@@ -10,7 +10,7 @@ import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHo
 import { deleteToken, getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { getActiveToken, loadApiClient, loadOnboardingState } from './runtime.js';
-import { getEscalationPoliciesAction, getSchedulesAction, getTeamsAction } from './actions/inspect.js';
+import { getEscalationPoliciesAction, getSchedulesAction, getTeamMembersAction, getTeamsAction } from './actions/inspect.js';
 import { addTeamMembersAction, createAlertSourceAction, createEscalationPolicyAction, createScheduleAction, createTeamAction, serializeActionError } from './actions/setup.js';
 import { openUrl, webHandoffUrl } from './actions/integrations.js';
 import { humanizeAction } from './actions/workflow.js';
@@ -498,15 +498,80 @@ async function chooseMenuAction(state) {
   }
 
   if (category.action === 'Inspect') {
-    const inspectAction = await choose('Inspect', [
-      { label: 'Setup status', action: 'Setup status' },
-      { label: 'Check readiness', action: 'Check readiness' },
-      { label: 'View teams', action: 'View teams' },
-      { label: 'View schedules', action: 'View schedules' },
-      { label: 'View escalation policies', action: 'View escalation policies' },
-      { label: 'Back to main menu', action: 'Back' }
+    await inspectMenu();
+    return 'Back';
+  }
+}
+
+async function inspectMenu() {
+  while (true) {
+    const choice = await choose('Inspect', [
+      { label: 'Setup status', action: 'status' },
+      { label: 'Check readiness', action: 'readiness' },
+      { label: 'View teams', action: 'teams' },
+      { label: 'View team members', action: 'members' },
+      { label: 'View schedules', action: 'schedules' },
+      { label: 'View escalation policies', action: 'policies' },
+      { label: 'Back to main menu', action: 'back' }
     ]);
-    return inspectAction.action;
+
+    if (choice.action === 'back') {
+      return;
+    }
+
+    if (choice.action === 'status') {
+      const state = await loadOnboardingState();
+      if (state) {
+        printStartupStatus(state);
+      }
+    } else if (choice.action === 'readiness') {
+      await readinessFlow();
+    } else if (choice.action === 'teams') {
+      await teamsFlow();
+    } else if (choice.action === 'members') {
+      await teamMembersFlow();
+    } else if (choice.action === 'schedules') {
+      await schedulesFlow();
+    } else if (choice.action === 'policies') {
+      await escalationPoliciesFlow();
+    }
+
+    separator();
+  }
+}
+
+async function teamMembersFlow() {
+  const state = await loadOnboardingState();
+  if (!state) {
+    printSummary('Team members', ['No auth context found. Authenticate first to inspect team members.']);
+    return;
+  }
+
+  const team = await chooseTeamRecord(state, "Which team's members do you want to see?");
+  if (!team) {
+    return;
+  }
+
+  try {
+    const result = await getTeamMembersAction({ teamId: team.id });
+    const members = result.data.members;
+
+    heading(`${result.data.teamName} members`);
+    if (!members.length) {
+      console.log(`${tone('•', FG_SLATE)} No members found`);
+      separator();
+      return;
+    }
+
+    members.forEach((member) => {
+      const label = member.name || member.email || member.id;
+      const email = member.email && member.email !== label ? `  ·  ${member.email}` : '';
+      console.log(`${tone('•', FG_SLATE)} ${label}${email}`);
+    });
+    separator();
+  } catch (error) {
+    const failure = serializeActionError(error, 'The wizard could not load team members.');
+    printSummary('Team members need attention', [failure.summary, `Rootly said: ${failure.error}`]);
   }
 }
 
@@ -1779,22 +1844,10 @@ async function main() {
       continue;
     }
 
-    if (action === 'Setup status') {
-      if (state) {
-        printStartupStatus(state);
-      }
-    } else if (action === 'Continue recommended setup') {
+    if (action === 'Continue recommended setup') {
       await continueRecommendedSetup(state);
     } else if (action === 'Run guided setup') {
       await accountSetup();
-    } else if (action === 'Check readiness') {
-      await readinessFlow();
-    } else if (action === 'View teams') {
-      await teamsFlow();
-    } else if (action === 'View schedules') {
-      await schedulesFlow();
-    } else if (action === 'View escalation policies') {
-      await escalationPoliciesFlow();
     } else if (action === 'Create a team') {
       await createTeamSetup();
     } else if (action === 'Add team members') {
