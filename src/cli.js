@@ -4,15 +4,15 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
-import { detectOnboardingState } from './detect-state.js';
+import { extractTeamId, extractUserId, getActiveToken, loadOnboardingState } from './runtime.js';
 import { getEscalationPoliciesAction, getReadinessAction, getSchedulesAction, getStatusAction, getTeamsAction } from './actions/inspect.js';
-import { addTeamMembersAction, createEscalationPolicyAction, createScheduleAction, createTeamAction, serializeActionError } from './actions/setup.js';
-import { startWebHandoffAction } from './actions/integrations.js';
+import { addTeamMembersAction, createAlertSourceAction, createEscalationPolicyAction, createScheduleAction, createTeamAction, serializeActionError } from './actions/setup.js';
+import { openUrl, startWebHandoffAction, webHandoffUrl } from './actions/integrations.js';
 import { applyMcpSetupAction, previewMcpSetupAction } from './actions/mcp.js';
 import { getRecommendedNextStepAction } from './actions/workflow.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
@@ -418,10 +418,6 @@ function humanizeAction(action) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function inferWorkspaceNameFromUserPayload(userPayload) {
   const explicitName =
     userPayload?.data?.attributes?.current_team_name ||
@@ -437,10 +433,6 @@ function inferWorkspaceNameFromUserPayload(userPayload) {
   return match?.[1] || null;
 }
 
-async function getActiveToken() {
-  return process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken()) || null;
-}
-
 function tokenFingerprint(token) {
   return createHash('sha256').update(token).digest('hex').slice(0, 16);
 }
@@ -448,15 +440,6 @@ function tokenFingerprint(token) {
 async function sessionPathForToken(token) {
   await fs.mkdir(SESSION_DIR, { recursive: true });
   return path.join(SESSION_DIR, `${tokenFingerprint(token)}.json`);
-}
-
-async function loadApiClient() {
-  const token = await getActiveToken();
-  if (!token) {
-    throw new Error('Rootly auth is required first.');
-  }
-
-  return new RootlyApiClient(token);
 }
 
 async function chooseTeamRecord(state, prompt = 'Which team do you want to work on?') {
@@ -474,53 +457,6 @@ async function chooseTeamRecord(state, prompt = 'Which team do you want to work 
   ]);
 
   return team.value;
-}
-
-function rootlyAppBaseUrl() {
-  return process.env.ROOTLY_APP_URL?.trim() || 'https://rootly.com';
-}
-
-function webHandoffUrl(kind) {
-  const base = rootlyAppBaseUrl();
-
-  switch (kind) {
-    case 'Slack':
-      return `${base}/account/integrations/slack_accounts/landing`;
-    case 'Datadog':
-      return `${base}/account/integrations/datadog_accounts/new`;
-    case 'Sentry':
-      return `${base}/account/integrations/sentry_accounts/new`;
-    case 'Grafana':
-      return `${base}/account/integrations/grafana_accounts/new`;
-    case 'PagerDuty':
-      return `${base}/account/integrations/pagerduty_accounts/new`;
-    case 'Opsgenie':
-      return `${base}/account/integrations/opsgenie_accounts/new`;
-    default:
-      return `${base}/account/integrations`;
-  }
-}
-
-async function openUrl(url) {
-  const platform = process.platform;
-
-  return new Promise((resolve) => {
-    let child;
-
-    if (platform === 'darwin') {
-      child = spawn('open', [url], { stdio: 'ignore' });
-    } else if (platform === 'win32') {
-      child = spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', windowsHide: true });
-    } else {
-      child = spawn('xdg-open', [url], { stdio: 'ignore' });
-    }
-
-    child.on('error', () => resolve(false));
-    child.on('spawn', () => {
-      child.unref();
-      resolve(true);
-    });
-  });
 }
 
 async function chooseMany(question, options) {
@@ -587,13 +523,6 @@ async function chooseMenuAction(state) {
       { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
-  }
-
-  if (category.action === 'Tools') {
-    const toolsAction = await choose('Tools', [
-      { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' }
-    ]);
-    return toolsAction.action;
   }
 
   if (category.action === 'Inspect') {
@@ -759,7 +688,6 @@ async function authFlow() {
   if (method.action === 'oauth') {
     console.log('Opening browser for authentication...');
     console.log('Waiting for Rootly authorization...');
-    const authStartedAt = Date.now();
 
     try {
       const result = await startOAuthLogin(baseUrl);
@@ -767,11 +695,6 @@ async function authFlow() {
       stored = result.stored;
       authSuccessLine = 'Browser sign-in completed successfully';
     } catch (error) {
-      const elapsed = Date.now() - authStartedAt;
-      if (elapsed < 3000) {
-        await sleep(3000 - elapsed);
-      }
-
       printSummary('Auth failed', [
         error?.message || 'Rootly browser sign-in did not complete',
         'Nothing was stored'
@@ -789,12 +712,7 @@ async function authFlow() {
     const token = await askHidden('Rootly API key');
 
     console.log('Validating token...');
-    const validationStartedAt = Date.now();
     userPayload = await validateToken(token, baseUrl);
-    const validationElapsed = Date.now() - validationStartedAt;
-    if (validationElapsed < 3000) {
-      await sleep(3000 - validationElapsed);
-    }
 
     if (!userPayload) {
       printSummary('Auth failed', [
@@ -842,29 +760,6 @@ async function authFlow() {
   ].filter(Boolean));
 
   return await getStoredToken();
-}
-
-async function loadOnboardingState() {
-  const token = await getActiveToken();
-  if (!token) {
-    return null;
-  }
-
-  const api = new RootlyApiClient(token);
-  const [userPayload, teamsPayload, schedulesPayload, escalationPoliciesPayload] = await Promise.all([
-    api.getCurrentUser(),
-    api.listTeams(),
-    api.listSchedules(),
-    api.listEscalationPolicies()
-  ]);
-
-  return detectOnboardingState({
-    userPayload,
-    teamsPayload,
-    schedulesPayload,
-    escalationPoliciesPayload,
-    authMode: process.env.ROOTLY_TOKEN?.trim() ? 'env-token' : 'stored-token'
-  });
 }
 
 async function logoutFlow() {
@@ -948,14 +843,6 @@ async function readinessFlow() {
   const state = result.data;
   printOnboardingState(state);
   printDoctorSummary(state);
-}
-
-function extractTeamId(group) {
-  return group?.data?.id || group?.id || null;
-}
-
-function extractUserId(user) {
-  return user?.id || user?.data?.id || null;
 }
 
 function buildHappyPathSummary(items) {
@@ -1467,11 +1354,16 @@ async function slackSetup() {
 
 async function alertSourceSetup() {
   heading('Hook up a monitor');
-  console.log('The wizard can set up a generic webhook source directly.');
+  console.log('The wizard can set up a generic webhook alert source directly.');
   separator();
   const state = await loadOnboardingState();
   if (state) {
-    printOnboardingState(state);
+    printStartupStatus(state);
+  }
+
+  const team = state ? await chooseTeamRecord(state, 'Which team should own this alert source?') : null;
+  if (state?.teams?.all?.length && !team) {
+    return;
   }
 
   const source = await choose('Which alert source are we setting up?', [
@@ -1481,13 +1373,31 @@ async function alertSourceSetup() {
   if (source.label === 'Back to previous menu') {
     return;
   }
-  const serviceName = state?.teams.hasAnyAlertingReadyTeam ? 'payments-api' : await ask('Service name', 'payments-api');
 
-  printSummary('Monitor setup summary', [
-    `Source: ${source.label}`,
-    `Service: ${serviceName}`,
-    'Next step: create the integration and run a test page'
-  ]);
+  const name = await ask('Alert source name', team ? `${team.name} Generic webhook` : 'Generic webhook');
+
+  const confirm = await ask(`Create ${name} now? (y/n)`, 'y');
+  if (!confirm.toLowerCase().startsWith('y')) {
+    printSummary('Monitor setup', ['No changes were made.']);
+    return;
+  }
+
+  try {
+    const result = await createAlertSourceAction({ teamId: team?.id, name });
+
+    printSummary('Alert source created', [
+      `Source: ${name}`,
+      result.data.id ? `Alert source ID: ${result.data.id}` : 'Alert source created',
+      result.data.webhookEndpoint ? `Webhook endpoint: ${result.data.webhookEndpoint}` : 'Webhook endpoint: not returned',
+      'Next step: send a test alert to verify paging'
+    ]);
+  } catch (error) {
+    const failure = serializeActionError(error, 'The wizard could not create the alert source.');
+    printSummary('Monitor setup needs attention', [
+      failure.summary,
+      `Rootly said: ${failure.error}`
+    ]);
+  }
 }
 
 function parseIdList(raw) {
@@ -1678,14 +1588,22 @@ async function mcpSetup() {
     results.push({ client: client.label, targetPath, backupPath });
   }
 
-  printSummary('MCP setup summary', [
+  const writesPlaintextToken = clients.some((client) => client.label !== 'Codex');
+  const writesProjectConfig = clients.some((client) => client.label === 'Claude Code');
+  const authSummary = tokenType.label === 'Use stored token' ? await getAuthSummary() : null;
+  const usingOAuthToken = authSummary?.mode === 'oauth';
+
+  printSummary('MCP setup summary', buildHappyPathSummary([
     `Clients: ${clients.map((client) => client.label).join(', ')}`,
     `Auth: ${tokenType.label}`,
     ...results.map((result) => `${result.client}: ${result.targetPath}`),
     ...results.filter((result) => result.backupPath).map((result) => `${result.client} backup: ${result.backupPath}`),
     'Config verified successfully for each selected client',
+    writesPlaintextToken ? 'Note: the token is stored in plaintext in these config files. Keep them out of version control.' : null,
+    writesProjectConfig ? 'Note: Claude Code config is written to .mcp.json in this directory — add it to .gitignore.' : null,
+    usingOAuthToken ? 'Note: browser sign-in uses a short-lived token, so this MCP config can stop working when it expires. Use an API key for durable MCP access.' : null,
     'Next step: restart the client if needed and verify the connection'
-  ]);
+  ]));
 }
 
 async function runActionCommand() {
@@ -1715,6 +1633,8 @@ async function runActionCommand() {
       result = await createScheduleAction(inputPayload);
     } else if (actionName === 'create-escalation-policy') {
       result = await createEscalationPolicyAction(inputPayload);
+    } else if (actionName === 'create-alert-source') {
+      result = await createAlertSourceAction(inputPayload);
     } else if (actionName === 'create-test-alert') {
       result = await createTestAlertAction(inputPayload);
     } else if (actionName === 'create-test-incident') {
@@ -1741,6 +1661,7 @@ async function runActionCommand() {
           'add-team-members',
           'create-schedule',
           'create-escalation-policy',
+          'create-alert-source',
           'create-test-alert',
           'create-test-incident',
           'start-web-handoff',
@@ -1761,10 +1682,50 @@ async function runActionCommand() {
   console.log(JSON.stringify(result, null, 2));
 }
 
+function printHelp() {
+  heading('Rootly Wizard');
+  console.log('A guided onboarding CLI for getting Rootly operational quickly.');
+  separator();
+  console.log('Usage:');
+  console.log('  rootly-wizard                 Start the interactive guided setup');
+  console.log('  rootly-wizard status          Print a one-shot workspace status summary');
+  console.log('  rootly-wizard readiness       Print the full onboarding readiness report');
+  console.log('  rootly-wizard teams           List teams and their setup coverage');
+  console.log('  rootly-wizard resume          Resume a pending web handoff (e.g. Slack)');
+  console.log('  rootly-wizard logout          Remove the stored token from the keychain');
+  console.log('  rootly-wizard action <name> [json]   Run a single action non-interactively (JSON in/out)');
+  console.log('  rootly-wizard help            Show this help');
+  separator();
+  console.log('Auth: set ROOTLY_TOKEN, or sign in on first run (browser or API key).');
+  console.log('Run `rootly-wizard action unknown` to list the available actions.');
+}
+
+function formatTopLevelError(error) {
+  const message = error?.message || String(error);
+
+  if (/\b401\b/.test(message)) {
+    return 'Rootly rejected the token (401). Re-authenticate with `rootly-wizard logout`, then rerun.';
+  }
+  if (/\b403\b/.test(message)) {
+    return 'Rootly denied access (403). This wizard expects an admin, organization-wide API key — check your token scope.';
+  }
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError' || /timed out|aborted/i.test(message)) {
+    return 'A Rootly API request timed out. Check your network connection and try again.';
+  }
+
+  return message;
+}
+
 async function main() {
   const entry = process.argv[2];
   if (entry === 'action') {
     await runActionCommand();
+    rl.close();
+    return;
+  }
+
+  if (entry === 'help' || entry === '--help' || entry === '-h') {
+    printHelp();
     rl.close();
     return;
   }
@@ -1904,7 +1865,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(formatTopLevelError(error));
   rl.close();
   process.exitCode = 1;
 });
