@@ -14,8 +14,8 @@ export async function getStatusAction() {
   return {
     ok: true,
     summary: 'Loaded workspace status.',
-    nextBestAction: state.onboarding.nextBestAction,
     data: {
+      nextBestAction: state.onboarding.nextBestAction,
       workspace: state.teams.workspace?.name || state.teams.workspace?.slug || 'Connected Rootly account',
       teams: state.teams.total,
       teamsWithMembers: state.teams.teamsWithMembers,
@@ -41,8 +41,8 @@ export async function getReadinessAction() {
   return {
     ok: true,
     summary: 'Loaded onboarding readiness.',
-    nextBestAction: state.onboarding.nextBestAction,
     data: {
+      nextBestAction: state.onboarding.nextBestAction,
       workspace: state.teams.workspace,
       onboarding: state.onboarding,
       teams: state.teams

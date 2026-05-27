@@ -4,18 +4,46 @@ function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
 }
 
-export async function createTeamAction({ name, description = 'Created during Rootly setup' }) {
+export async function createTeamAction({
+  name,
+  description = 'Created during Rootly setup',
+  memberEmails = [],
+  enableAlertsAndBroadcast = false
+} = {}) {
   const api = await loadApiClient();
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
 
-  const payload = await api.createTeam({
+  const cleanEmails = (memberEmails || []).map((value) => String(value).trim()).filter(Boolean);
+  const matchedUsers = [];
+  for (const email of cleanEmails) {
+    const match = await api.findUserByEmail(email);
+    if (match) {
+      matchedUsers.push(match);
+    }
+  }
+  const memberIds = matchedUsers
+    .map((user) => Number.parseInt(user.id, 10))
+    .filter(Number.isFinite);
+
+  const attributes = {
     name,
     description,
-    user_ids: [currentUserId].filter(Boolean),
+    user_ids: [currentUserId, ...memberIds].filter(Boolean),
     admin_ids: [currentUserId].filter(Boolean),
     auto_add_members_when_attached: true
-  });
+  };
+
+  if (cleanEmails.length) {
+    attributes.notify_emails = cleanEmails;
+  }
+
+  if (enableAlertsAndBroadcast) {
+    attributes.alerts_email_enabled = true;
+    attributes.incident_broadcast_enabled = true;
+  }
+
+  const payload = await api.createTeam(attributes);
 
   return {
     ok: true,
@@ -23,7 +51,9 @@ export async function createTeamAction({ name, description = 'Created during Roo
     data: {
       id: extractTeamId(payload),
       name,
-      description
+      description,
+      memberIds,
+      matchedUsers: matchedUsers.map((user) => ({ id: user.id, email: user.attributes?.email }))
     }
   };
 }
@@ -68,7 +98,7 @@ export async function addTeamMembersAction({ teamId, emails }) {
   };
 }
 
-export async function createScheduleAction({ teamId, name, handoffTime = '09:00' }) {
+export async function createScheduleAction({ teamId, name, handoffTime = '09:00', memberIds = [] } = {}) {
   const api = await loadApiClient();
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
@@ -83,6 +113,14 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
 
   const scheduleId = createdSchedule?.data?.id || createdSchedule?.id || null;
   if (scheduleId) {
+    const rotationMembers = [currentUserId, ...memberIds]
+      .filter(Boolean)
+      .map((id, index) => ({
+        member_type: 'User',
+        member_id: id,
+        position: index + 1
+      }));
+
     await api.createScheduleRotation(scheduleId, {
       name: `${name} Primary Rotation`,
       schedule_rotationable_type: 'ScheduleDailyRotation',
@@ -90,11 +128,7 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
       position: 1,
       active_all_week: true,
       time_zone: 'Etc/UTC',
-      schedule_rotation_members: currentUserId ? [{
-        member_type: 'User',
-        member_id: currentUserId,
-        position: 1
-      }] : []
+      schedule_rotation_members: rotationMembers
     });
   }
 
@@ -110,7 +144,7 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
   };
 }
 
-export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1 }) {
+export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false } = {}) {
   const api = await loadApiClient();
 
   const payload = await api.createEscalationPolicy({
@@ -121,14 +155,33 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
     service_ids: []
   });
 
+  const policyId = payload?.data?.id || payload?.id || null;
+
+  let pathCreated = false;
+  if (createDefaultPath && policyId) {
+    await api.createEscalationPath(policyId, {
+      name: `${name} Path`,
+      notification_type: 'audible',
+      path_type: 'escalation',
+      default: true,
+      match_mode: 'match-all-rules',
+      position: 1,
+      repeat: false,
+      initial_delay: 0,
+      rules: [{ rule_type: 'alert_urgency', urgency_ids: [] }]
+    });
+    pathCreated = true;
+  }
+
   return {
     ok: true,
     summary: `Created escalation policy ${name}.`,
     data: {
-      id: payload?.data?.id || payload?.id || null,
+      id: policyId,
       teamId,
       name,
-      repeatCount
+      repeatCount,
+      pathCreated
     }
   };
 }

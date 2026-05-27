@@ -47,6 +47,22 @@ export class RootlyApiClient {
     return this.request('/v1/escalation_policies');
   }
 
+  async listSeverities() {
+    return this.request('/v1/severities');
+  }
+
+  async listServices() {
+    return this.request('/v1/services');
+  }
+
+  async listEnvironments() {
+    return this.request('/v1/environments');
+  }
+
+  async listIncidentTypes() {
+    return this.request('/v1/incident_types');
+  }
+
   async createTeam(attributes) {
     return this.request('/v1/teams', {
       method: 'POST',
@@ -101,6 +117,18 @@ export class RootlyApiClient {
       body: {
         data: {
           type: 'escalation_policies',
+          attributes
+        }
+      }
+    });
+  }
+
+  async createEscalationPath(escalationPolicyId, attributes) {
+    return this.request(`/v1/escalation_policies/${escalationPolicyId}/escalation_paths`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'escalation_paths',
           attributes
         }
       }
