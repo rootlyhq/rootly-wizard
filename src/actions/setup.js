@@ -57,7 +57,11 @@ export async function createTeamAction({
       name,
       description,
       memberIds,
-      matchedUsers: matchedUsers.map((user) => ({ id: user.id, email: user.attributes?.email }))
+      matchedUsers: matchedUsers.map((user) => ({
+        id: user.id,
+        email: user.attributes?.email || null,
+        name: user.attributes?.full_name || user.attributes?.name || null
+      }))
     }
   };
 }
@@ -96,7 +100,8 @@ export async function addTeamMembersAction({ teamId, emails }) {
       requestedEmails: cleanEmails,
       matchedUsers: resolvedMembers.map((user) => ({
         id: user.id,
-        email: user.attributes?.email
+        email: user.attributes?.email || null,
+        name: user.attributes?.full_name || user.attributes?.name || null
       }))
     }
   };

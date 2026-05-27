@@ -978,7 +978,7 @@ async function runWorkspaceSetup(state) {
   printSummary('What the wizard completed', buildHappyPathSummary([
     `Team: ${teamName}`,
     result.data.team?.id ? `Team ID: ${result.data.team.id}` : null,
-    `Matched existing users: ${result.data.matchedUsers.map((user) => user.email).filter(Boolean).join(', ') || 'none'}`,
+    `Matched existing users: ${result.data.matchedUsers.map((user) => user.name || user.email).filter(Boolean).join(', ') || 'none'}`,
     result.data.schedule?.id ? `Schedule created: ${result.data.schedule.id}` : 'Schedule created: no',
     result.data.escalationPolicy?.id ? `Escalation policy created: ${result.data.escalationPolicy.id}` : 'Escalation policy created: no',
     `Alert source: ${alertSourceSummary}`
@@ -1153,7 +1153,7 @@ async function addTeamMembersSetup() {
 
     printSummary('Team members updated', [
       `Team: ${team.name}`,
-      `Matched existing users: ${result.data.matchedUsers.map((user) => user.email).join(', ') || 'none'}`,
+      `Matched existing users: ${result.data.matchedUsers.map((user) => user.name || user.email).join(', ') || 'none'}`,
       `Requested emails: ${emails.join(', ')}`
     ]);
   } catch (error) {

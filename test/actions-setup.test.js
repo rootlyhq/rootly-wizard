@@ -66,7 +66,7 @@ test('createTeamAction (guided path) resolves emails and enables alerts/broadcas
   const calls = installFetch((req) => {
     if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };
     if (req.href.includes('/v1/users') && req.method === 'GET') {
-      return { body: { data: [{ id: '7', attributes: { email: 'dev@example.com' } }], links: {} } };
+      return { body: { data: [{ id: '7', attributes: { email: 'dev@example.com', full_name: 'Dev User' } }], links: {} } };
     }
     if (req.href.endsWith('/v1/teams') && req.method === 'POST') return { body: { data: { id: '100' } } };
     return { body: {} };
@@ -79,7 +79,7 @@ test('createTeamAction (guided path) resolves emails and enables alerts/broadcas
   });
 
   assert.deepEqual(result.data.memberIds, [7]);
-  assert.deepEqual(result.data.matchedUsers, [{ id: '7', email: 'dev@example.com' }]);
+  assert.deepEqual(result.data.matchedUsers, [{ id: '7', email: 'dev@example.com', name: 'Dev User' }]);
 
   const attrs = calls.find((c) => c.href.endsWith('/v1/teams') && c.method === 'POST').body.data.attributes;
   assert.deepEqual(attrs.user_ids, ['42', 7]);
