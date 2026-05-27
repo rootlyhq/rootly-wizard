@@ -139,3 +139,40 @@ export async function getEscalationPoliciesAction() {
     }
   };
 }
+
+async function listResourceAction(method, label, mapItem) {
+  const token = await getActiveToken();
+  if (!token) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  const api = await loadApiClient();
+  const payload = await api[method]();
+  const items = (payload?.data || []).map(mapItem);
+
+  return {
+    ok: true,
+    summary: `Loaded ${label}.`,
+    data: { total: items.length, items }
+  };
+}
+
+const byName = (record) => ({
+  id: record.id,
+  name: record?.attributes?.name || record?.attributes?.slug || record.id
+});
+
+export const getServicesAction = () => listResourceAction('listServices', 'services', byName);
+export const getSeveritiesAction = () => listResourceAction('listSeverities', 'severities', byName);
+export const getEnvironmentsAction = () => listResourceAction('listEnvironments', 'environments', byName);
+export const getIncidentTypesAction = () => listResourceAction('listIncidentTypes', 'incident types', byName);
+export const getUsersAction = () => listResourceAction('listUsers', 'users', (record) => ({
+  id: record.id,
+  email: record?.attributes?.email || null,
+  name: record?.attributes?.full_name || record?.attributes?.name || null
+}));
