@@ -1169,6 +1169,40 @@ async function addTeamMembersSetup() {
   }
 }
 
+async function pickRotationMembers(team) {
+  let people = [];
+  try {
+    const result = await getTeamMembersAction({ teamId: team.id });
+    people = (result.data?.members || []).filter((member) => !member.serviceAccount);
+  } catch {
+    people = [];
+  }
+
+  if (!people.length) {
+    printSummary('On-call rotation', [
+      `${team.name} has no members to staff a rotation yet.`,
+      'The schedule will be created with no one on call — add team members first, then add them to the rotation.'
+    ]);
+    return [];
+  }
+
+  console.log(panelTitle('Who should be on the on-call rotation?'));
+  people.forEach((member, index) => {
+    console.log(`  ${tone(`${index + 1}.`, FG_PURPLE)} ${member.name || member.email || member.id}`);
+  });
+
+  const raw = await ask('Select members (comma-separated, or Enter for all)', '');
+  if (!raw.trim()) {
+    return people.map((member) => member.id);
+  }
+
+  const chosen = [...new Set(raw.split(',').map((value) => Number.parseInt(value.trim(), 10) - 1))]
+    .filter((index) => index >= 0 && index < people.length)
+    .map((index) => people[index].id);
+
+  return chosen.length ? chosen : people.map((member) => member.id);
+}
+
 async function createScheduleSetup() {
   heading('Create a schedule');
   const state = await loadOnboardingState();
@@ -1184,6 +1218,7 @@ async function createScheduleSetup() {
 
   const name = await ask('Schedule name', `${team.name} On-Call`);
   const handoffTime = await ask('Daily handoff time (HH:MM)', '09:00');
+  const memberIds = await pickRotationMembers(team);
 
   const confirm = await ask(`Create ${name} for ${team.name}? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1192,12 +1227,13 @@ async function createScheduleSetup() {
   }
 
   try {
-    const result = await createScheduleAction({ teamId: team.id, name, handoffTime });
+    const result = await createScheduleAction({ teamId: team.id, name, handoffTime, memberIds });
 
     printSummary('Schedule created', [
       `Team: ${team.name}`,
       `Schedule: ${name}`,
-      result.data.scheduleId ? `Schedule ID: ${result.data.scheduleId}` : 'Schedule created'
+      result.data.scheduleId ? `Schedule ID: ${result.data.scheduleId}` : 'Schedule created',
+      result.data.rotationCreated ? 'On-call rotation created' : 'No rotation yet (no one on call)'
     ]);
   } catch (error) {
     const failure = serializeActionError(error, 'The wizard could not create the schedule.');

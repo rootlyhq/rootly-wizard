@@ -130,9 +130,13 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
   const createdSchedule = await api.createSchedule(scheduleAttributes);
   const scheduleId = createdSchedule?.data?.id || createdSchedule?.id || null;
 
-  // Only build a rotation from real people; skip it entirely when there is
-  // no one to put on call (rather than create an empty or bot-only rotation).
-  const rotationMemberIds = [selfId, ...memberIds].filter(Boolean);
+  // The rotation is exactly the members the caller chose; fall back to the
+  // signed-in user only when none were given. The service account is never
+  // placed on the rotation, and an empty rotation is skipped entirely.
+  const explicitMembers = (memberIds || []).map((id) => String(id)).filter(Boolean);
+  const rotationMemberIds = explicitMembers.length
+    ? [...new Set(explicitMembers)]
+    : (selfId ? [String(selfId)] : []);
   let rotationCreated = false;
   if (scheduleId && rotationMemberIds.length) {
     await api.createScheduleRotation(scheduleId, {

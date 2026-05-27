@@ -88,7 +88,25 @@ test('createTeamAction (guided path) resolves emails and enables alerts/broadcas
   assert.equal(attrs.incident_broadcast_enabled, true);
 });
 
-test('createScheduleAction adds the current user and members to the rotation in order', async () => {
+test('createScheduleAction defaults the rotation to the signed-in user when no members are chosen', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };
+    if (req.href.endsWith('/v1/schedules') && req.method === 'POST') return { body: { data: { id: 'sch1' } } };
+    if (req.href.includes('/schedule_rotations') && req.method === 'POST') return { body: { data: { id: 'rot1' } } };
+    return { body: {} };
+  });
+
+  const result = await createScheduleAction({ teamId: '100', name: 'Payments On-Call' });
+  assert.equal(result.data.scheduleId, 'sch1');
+  assert.equal(result.data.rotationCreated, true);
+
+  const members = calls
+    .find((c) => c.href.includes('/schedule_rotations') && c.method === 'POST')
+    .body.data.attributes.schedule_rotation_members;
+  assert.deepEqual(members, [{ member_type: 'User', member_id: '42', position: 1 }]);
+});
+
+test('createScheduleAction uses exactly the chosen members for the rotation', async () => {
   const calls = installFetch((req) => {
     if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };
     if (req.href.endsWith('/v1/schedules') && req.method === 'POST') return { body: { data: { id: 'sch1' } } };
@@ -97,15 +115,18 @@ test('createScheduleAction adds the current user and members to the rotation in 
   });
 
   const result = await createScheduleAction({ teamId: '100', name: 'Payments On-Call', memberIds: [7, 9] });
-  assert.equal(result.data.scheduleId, 'sch1');
+  assert.equal(result.data.rotationCreated, true);
+
+  // Signed-in user owns the schedule but is not auto-added to the rotation.
+  const scheduleAttrs = calls.find((c) => c.href.endsWith('/v1/schedules') && c.method === 'POST').body.data.attributes;
+  assert.equal(scheduleAttrs.owner_user_id, '42');
 
   const members = calls
     .find((c) => c.href.includes('/schedule_rotations') && c.method === 'POST')
     .body.data.attributes.schedule_rotation_members;
   assert.deepEqual(members, [
-    { member_type: 'User', member_id: '42', position: 1 },
-    { member_type: 'User', member_id: 7, position: 2 },
-    { member_type: 'User', member_id: 9, position: 3 }
+    { member_type: 'User', member_id: '7', position: 1 },
+    { member_type: 'User', member_id: '9', position: 2 }
   ]);
 });
 
@@ -145,8 +166,8 @@ test('createScheduleAction builds the rotation from real members only', async ()
 
   const members = calls.find((c) => c.href.includes('/schedule_rotations') && c.method === 'POST').body.data.attributes.schedule_rotation_members;
   assert.deepEqual(members, [
-    { member_type: 'User', member_id: 7, position: 1 },
-    { member_type: 'User', member_id: 9, position: 2 }
+    { member_type: 'User', member_id: '7', position: 1 },
+    { member_type: 'User', member_id: '9', position: 2 }
   ]);
 });
 
