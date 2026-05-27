@@ -326,8 +326,6 @@ function printOnboardingState(state) {
     { label: 'Alerting', value: state.teams.hasAnyAlertingReadyTeam ? 'ready' : 'needed' }
   ]);
 
-  printTeamList('Teams', state.teams.all);
-
   printKeyValuePanel('Readiness', [
     { label: 'Workspace setup', value: state.onboarding.readiness.workspaceSetup },
     { label: 'Team setup', value: state.onboarding.readiness.groupSetup },
@@ -462,7 +460,7 @@ async function chooseMenuAction(state) {
   const recommended = state ? recommendedActionLabel(state) : 'Run guided setup';
 
   const category = await choose('What would you like to do?', [
-    { label: `Continue recommended setup (${recommended})`, action: recommended },
+    { label: `Continue recommended setup (${recommended})`, action: 'Continue recommended setup' },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
@@ -1013,15 +1011,14 @@ async function continueRecommendedSetup(state) {
     return;
   }
 
-  heading('Review remaining setup');
-  console.log('The workspace already has the main setup objects the wizard can verify.');
-  separator();
   if (state) {
-    printOnboardingState(state);
-    printSummary('What comes next', [
-      'Use the explicit setup actions in the menu if you want to keep refining teams, schedules, or escalation policies.',
-      'Use the integrations menu when you are ready to connect Slack or another vendor integration.'
+    printSummary('Setup looks complete', [
+      'Your core Rootly setup (teams, on-call, escalation, alerting) is already in place — nothing for the wizard to create right now.',
+      `Readiness — workspace: ${state.onboarding.readiness.workspaceSetup}, team: ${state.onboarding.readiness.groupSetup}, alerting: ${state.onboarding.readiness.alertingSetup}, incident: ${state.onboarding.readiness.incidentSetup}`,
+      'Next: connect Slack or create a test incident from the Integrations menu, or open Inspect for details.'
     ]);
+  } else {
+    printSummary('Review remaining setup', ['Authenticate first to review setup.']);
   }
 }
 
@@ -1781,7 +1778,7 @@ async function main() {
       continue;
     }
 
-    if (action === 'Review remaining setup') {
+    if (action === 'Continue recommended setup') {
       await continueRecommendedSetup(state);
     } else if (action === 'Run guided setup') {
       await accountSetup();
