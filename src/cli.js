@@ -564,6 +564,10 @@ async function teamMembersFlow() {
     }
 
     members.forEach((member) => {
+      if (member.serviceAccount) {
+        console.log(`${tone('•', FG_SLATE)} ${member.name || 'Service account'}  ·  ${tone('service account (API key)', FG_SLATE)}`);
+        return;
+      }
       const label = member.name || member.email || member.id;
       const email = member.email && member.email !== label ? `  ·  ${member.email}` : '';
       console.log(`${tone('•', FG_SLATE)} ${label}${email}`);

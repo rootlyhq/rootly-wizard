@@ -1,4 +1,4 @@
-import { getActiveToken, loadApiClient, loadOnboardingState } from '../runtime.js';
+import { getActiveToken, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
 
 export async function getStatusAction() {
   const state = await loadOnboardingState();
@@ -180,7 +180,8 @@ export async function getTeamMembersAction({ teamId } = {}) {
     return {
       id,
       email: record?.attributes?.email || null,
-      name: record?.attributes?.full_name || record?.attributes?.name || null
+      name: record?.attributes?.full_name || record?.attributes?.name || null,
+      serviceAccount: isServiceAccount(record)
     };
   });
 

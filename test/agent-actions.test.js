@@ -109,7 +109,7 @@ test('getTeamMembersAction resolves a team\'s members from included users', asyn
           data: { id: 't1', attributes: { name: 'Payments' }, relationships: { users: { data: [{ id: 'u1' }, { id: 'u2' }] } } },
           included: [
             { id: 'u1', type: 'users', attributes: { email: 'a@b.com', full_name: 'A B' } },
-            { id: 'u2', type: 'users', attributes: { email: 'c@d.com', full_name: 'C D' } }
+            { id: 'u2', type: 'users', attributes: { email: 'bot+apikey-xyz@rootly.com', full_name: 'Rootly Wizard' } }
           ]
         }
       };
@@ -121,7 +121,7 @@ test('getTeamMembersAction resolves a team\'s members from included users', asyn
   assert.equal(result.data.teamName, 'Payments');
   assert.equal(result.data.total, 2);
   assert.deepEqual(result.data.members, [
-    { id: 'u1', email: 'a@b.com', name: 'A B' },
-    { id: 'u2', email: 'c@d.com', name: 'C D' }
+    { id: 'u1', email: 'a@b.com', name: 'A B', serviceAccount: false },
+    { id: 'u2', email: 'bot+apikey-xyz@rootly.com', name: 'Rootly Wizard', serviceAccount: true }
   ]);
 });
