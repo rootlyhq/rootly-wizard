@@ -16,7 +16,7 @@ import { openUrl, webHandoffUrl } from './actions/integrations.js';
 import { humanizeAction } from './actions/workflow.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { runGuidedSetupAction } from './actions/guided.js';
-import { ACTIONS, buildActionCatalog, describeAction, toStructuredError, validateInput } from './actions/registry.js';
+import { ACTIONS, buildActionCatalog, buildToolSpecs, describeAction, toStructuredError, validateInput } from './actions/registry.js';
 
 function createInterface() {
   return readline.createInterface({ input, output });
@@ -1521,12 +1521,48 @@ function emitAction(result) {
   console.log(JSON.stringify(result, null, 2));
 }
 
+function agentQuickstart() {
+  return {
+    ok: true,
+    summary: 'Rootly Wizard agent interface.',
+    data: {
+      usage: 'rootly-wizard action <name> [json]',
+      conventions: [
+        'Input is a single JSON object as the last argument; output is one JSON object on stdout.',
+        'Success: { ok:true, summary, data }. Failure: { ok:false, code, error, field?, retryable }.',
+        'Auth: set ROOTLY_TOKEN to an organization admin Rootly API key.',
+        'Add "dryRun": true to any mutating action to preview without executing.'
+      ],
+      discover: {
+        list: 'rootly-wizard action list',
+        describe: 'rootly-wizard action describe <name>',
+        tools: 'rootly-wizard action tools'
+      },
+      examples: [
+        'rootly-wizard action get-recommended-next-step',
+        'rootly-wizard action list-services',
+        'rootly-wizard action run-guided-setup \'{"teamName":"Payments"}\''
+      ]
+    }
+  };
+}
+
 async function runActionCommand() {
   const actionName = process.argv[3];
   const rawInput = process.argv[4];
 
+  if (!actionName || actionName === 'help') {
+    emitAction(agentQuickstart());
+    return;
+  }
+
   if (actionName === 'list') {
     emitAction({ ok: true, summary: 'Available actions.', data: { actions: buildActionCatalog() } });
+    return;
+  }
+
+  if (actionName === 'tools') {
+    emitAction({ ok: true, summary: 'Function-calling tool definitions.', data: { tools: buildToolSpecs() } });
     return;
   }
 
@@ -1619,10 +1655,12 @@ function printHelp() {
   console.log('  rootly-wizard action <name> [json]   Run a single action non-interactively (JSON in/out)');
   console.log('  rootly-wizard action list            List available actions (JSON)');
   console.log('  rootly-wizard action describe <name> Show an action input schema (JSON)');
+  console.log('  rootly-wizard action tools           Emit function-calling tool defs (JSON)');
+  console.log('  rootly-wizard action help            Agent quickstart (JSON)');
   console.log('  rootly-wizard help            Show this help');
   separator();
   console.log('Auth: set ROOTLY_TOKEN, or sign in on first run (browser or API key).');
-  console.log('Agents: pass {"dryRun": true} to any mutating action to preview without executing.');
+  console.log('Agents: see AGENTS.md. Pass {"dryRun": true} to any mutating action to preview.');
 }
 
 function formatTopLevelError(error) {

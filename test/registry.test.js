@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, buildActionCatalog, describeAction, validateInput, toStructuredError } from '../src/actions/registry.js';
+import { ACTIONS, buildActionCatalog, buildToolSpecs, describeAction, validateInput, toStructuredError } from '../src/actions/registry.js';
 
 test('every action has a handler, a description, and an input schema', () => {
   for (const [name, entry] of Object.entries(ACTIONS)) {
@@ -22,6 +22,26 @@ test('catalog and describe expose discovery metadata', () => {
   assert.equal(team.input.name.required, true);
 
   assert.equal(describeAction('nope'), null);
+});
+
+test('buildToolSpecs emits valid tool definitions for every action', () => {
+  const tools = buildToolSpecs();
+  assert.equal(tools.length, Object.keys(ACTIONS).length);
+
+  for (const tool of tools) {
+    assert.equal(typeof tool.name, 'string');
+    assert.equal(typeof tool.description, 'string');
+    assert.equal(tool.input_schema.type, 'object');
+    assert.ok(Array.isArray(tool.input_schema.required));
+  }
+
+  const team = tools.find((t) => t.name === 'create-team');
+  assert.ok(team.input_schema.required.includes('name'));
+  assert.equal(team.input_schema.properties.dryRun.type, 'boolean'); // mutating actions expose dryRun
+  assert.deepEqual(team.input_schema.properties.memberEmails.items, { type: 'string' });
+
+  const readOnly = tools.find((t) => t.name === 'list-services');
+  assert.equal(readOnly.input_schema.properties.dryRun, undefined); // read actions do not
 });
 
 test('validateInput flags missing required fields and type mismatches', () => {

@@ -236,6 +236,40 @@ export function describeAction(name) {
   };
 }
 
+// Convert the registry into function-calling tool definitions (JSON Schema
+// input_schema), compatible with Anthropic/OpenAI tool formats. Tool name ==
+// action name, so a tool call maps directly to `action <name> <args>`.
+export function buildToolSpecs() {
+  return Object.entries(ACTIONS).map(([name, entry]) => {
+    const properties = {};
+    const required = [];
+
+    for (const [field, spec] of Object.entries(entry.input)) {
+      const property = { type: spec.type === 'integer' ? 'integer' : spec.type, description: spec.description };
+      if (spec.type === 'array') {
+        property.items = { type: spec.items || 'string' };
+      }
+      if (spec.default !== undefined) {
+        property.default = spec.default;
+      }
+      properties[field] = property;
+      if (spec.required) {
+        required.push(field);
+      }
+    }
+
+    if (entry.mutates) {
+      properties.dryRun = { type: 'boolean', description: 'Preview the action without executing it.' };
+    }
+
+    return {
+      name,
+      description: entry.description,
+      input_schema: { type: 'object', properties, required }
+    };
+  });
+}
+
 export function validateInput(schema, payload) {
   for (const [field, spec] of Object.entries(schema || {})) {
     const value = payload?.[field];
