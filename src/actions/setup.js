@@ -1,4 +1,4 @@
-import { extractTeamId, extractUserId, loadApiClient } from '../runtime.js';
+import { extractTeamId, extractUserId, isServiceAccount, loadApiClient } from '../runtime.js';
 
 function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
@@ -26,11 +26,15 @@ export async function createTeamAction({
     .map((user) => Number.parseInt(user.id, 10))
     .filter(Number.isFinite);
 
+  // Only seed a real signed-in user as member/admin — never the API-key
+  // service account (it would surface as a bot+apikey member of the team).
+  const selfIds = currentUserId && !isServiceAccount(currentUser) ? [currentUserId] : [];
+
   const attributes = {
     name,
     description,
-    user_ids: [currentUserId, ...memberIds].filter(Boolean),
-    admin_ids: [currentUserId].filter(Boolean),
+    user_ids: [...selfIds, ...memberIds].filter(Boolean),
+    admin_ids: selfIds,
     auto_add_members_when_attached: true
   };
 

@@ -48,6 +48,20 @@ test('createTeamAction (agent path) sends a minimal payload', async () => {
   assert.equal('alerts_email_enabled' in attrs, false);
 });
 
+test('createTeamAction does not seed an API-key service account as member/admin', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '99', attributes: { email: 'bot+apikey-abc-123@rootly.com' } } } };
+    if (req.href.endsWith('/v1/teams') && req.method === 'POST') return { body: { data: { id: 't1' } } };
+    return { body: {} };
+  });
+
+  await createTeamAction({ name: 'Payments' });
+
+  const attrs = calls.find((c) => c.href.endsWith('/v1/teams') && c.method === 'POST').body.data.attributes;
+  assert.deepEqual(attrs.user_ids, []);
+  assert.deepEqual(attrs.admin_ids, []);
+});
+
 test('createTeamAction (guided path) resolves emails and enables alerts/broadcast', async () => {
   const calls = installFetch((req) => {
     if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };

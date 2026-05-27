@@ -45,3 +45,11 @@ export function extractTeamId(group) {
 export function extractUserId(user) {
   return user?.id || user?.data?.id || null;
 }
+
+// API keys authenticate as a synthetic service user whose email looks like
+// `bot+apikey-<uuid>@rootly.com`. Such an identity should not be seeded as a
+// team member or on-call participant.
+export function isServiceAccount(user) {
+  const email = user?.data?.attributes?.email || user?.attributes?.email || '';
+  return /^bot\+apikey-/i.test(email);
+}
