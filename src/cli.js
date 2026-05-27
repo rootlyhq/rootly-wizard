@@ -15,7 +15,7 @@ import { addTeamMembersAction, createEscalationPolicyAction, createScheduleActio
 import { startWebHandoffAction } from './actions/integrations.js';
 import { applyMcpSetupAction, previewMcpSetupAction } from './actions/mcp.js';
 import { getRecommendedNextStepAction } from './actions/workflow.js';
-import { createTestAlertAction, createTestIncidentAction, getSlackTestGuidanceAction } from './actions/testing.js';
+import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 
 function createInterface() {
   return readline.createInterface({ input, output });
@@ -389,7 +389,7 @@ function recommendedActionLabel(state) {
     case 'create-escalation-policy':
       return 'Create an escalation policy';
     case 'hook-up-monitor':
-      return 'Hook up a monitor';
+      return 'Hook up a monitor (Datadog, Grafana, PagerDuty)';
     default:
       return 'Review remaining setup';
   }
@@ -465,10 +465,13 @@ async function chooseTeamRecord(state, prompt = 'Which team do you want to work 
     return null;
   }
 
-  const team = await choose(prompt, state.teams.all.map((item) => ({
-    label: `${item.name} (${item.memberCount || 0} members, ${item.scheduleCount || 0} schedules, ${item.escalationPolicyCount || 0} escalations)`,
-    value: item
-  })));
+  const team = await choose(prompt, [
+    ...state.teams.all.map((item) => ({
+      label: `${item.name} (${item.memberCount || 0} members, ${item.scheduleCount || 0} schedules, ${item.escalationPolicyCount || 0} escalations)`,
+      value: item
+    })),
+    { label: 'Back to previous menu', value: null }
+  ]);
 
   return team.value;
 }
@@ -577,10 +580,9 @@ async function chooseMenuAction(state) {
   if (category.action === 'Integrations') {
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
-      { label: 'Hook up a monitor', action: 'Hook up a monitor' },
+      { label: 'Hook up a monitor (Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
       { label: 'Send a test alert', action: 'Send a test alert' },
       { label: 'Create a test incident', action: 'Create a test incident' },
-      { label: 'Test Slack messaging', action: 'Test Slack messaging' },
       { label: 'Connect vendor integration in Rootly web', action: 'Connect vendor integration in Rootly web' },
       { label: 'Back to main menu', action: 'Back' }
     ]);
@@ -738,8 +740,15 @@ async function authFlow() {
 
   const method = await choose('Sign in with Rootly', [
     { label: 'Browser sign-in (recommended)', action: 'oauth' },
-    { label: 'API key', action: 'api-key' }
+    { label: 'API key', action: 'api-key' },
+    { label: 'Back', action: 'back' }
   ]);
+
+  if (method.action === 'back') {
+    printSummary('Sign in', ['No sign-in method selected.']);
+    rl.close();
+    return null;
+  }
 
   const baseUrl = process.env.ROOTLY_API_BASE_URL?.trim() || 'https://api.rootly.com';
 
@@ -1140,8 +1149,13 @@ async function runWorkspaceSetup(state) {
 
   let alertSourceSummary = 'not created';
   const alertSourceChoice = await choose('Create or connect an alert source?', [
-    { label: 'Generic webhook' }
+    { label: 'Generic webhook' },
+    { label: 'Back to previous menu' }
   ]);
+
+  if (alertSourceChoice.label === 'Back to previous menu') {
+    return;
+  }
 
   try {
     const sourcePayload = await api.createAlertSource({
@@ -1461,8 +1475,12 @@ async function alertSourceSetup() {
   }
 
   const source = await choose('Which alert source are we setting up?', [
-    { label: 'Generic webhook' }
+    { label: 'Generic webhook' },
+    { label: 'Back to previous menu' }
   ]);
+  if (source.label === 'Back to previous menu') {
+    return;
+  }
   const serviceName = state?.teams.hasAnyAlertingReadyTeam ? 'payments-api' : await ask('Service name', 'payments-api');
 
   printSummary('Monitor setup summary', [
@@ -1486,8 +1504,8 @@ async function testAlertSetup() {
   const team = state ? await chooseTeamRecord(state, 'Which team should receive this test alert?') : null;
   const summary = await ask('Alert summary', 'Rootly Wizard test alert');
   const description = await ask('Description', 'Test alert sent from Rootly Wizard');
-  const serviceIds = parseIdList(await ask('Service IDs (comma-separated, optional)', ''));
-  const environmentIds = parseIdList(await ask('Environment IDs (comma-separated, optional)', ''));
+  const serviceIds = parseIdList(await ask('Service IDs (comma-separated, optional, example: 12345,67890)', ''));
+  const environmentIds = parseIdList(await ask('Environment IDs (comma-separated, optional, example: 98765)', ''));
 
   const confirm = await ask(`Send test alert "${summary}" now? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1527,10 +1545,10 @@ async function testIncidentSetup() {
   const team = state ? await chooseTeamRecord(state, 'Which team should own this test incident?') : null;
   const title = await ask('Incident title', 'Rootly Wizard test incident');
   const summary = await ask('Summary', 'Test incident created from Rootly Wizard');
-  const severityId = await ask('Severity ID (optional)', '');
-  const incidentTypeIds = parseIdList(await ask('Incident type IDs (comma-separated, optional)', ''));
-  const serviceIds = parseIdList(await ask('Service IDs (comma-separated, optional)', ''));
-  const environmentIds = parseIdList(await ask('Environment IDs (comma-separated, optional)', ''));
+  const severityId = await ask('Severity ID (optional, example: 12345)', '');
+  const incidentTypeIds = parseIdList(await ask('Incident type IDs (comma-separated, optional, example: 12345,67890)', ''));
+  const serviceIds = parseIdList(await ask('Service IDs (comma-separated, optional, example: 12345,67890)', ''));
+  const environmentIds = parseIdList(await ask('Environment IDs (comma-separated, optional, example: 98765)', ''));
   const isPrivate = (await ask('Private incident? (y/n)', 'n')).toLowerCase().startsWith('y');
 
   const confirm = await ask(`Create test incident "${title}" now? (y/n)`, 'y');
@@ -1566,17 +1584,6 @@ async function testIncidentSetup() {
   }
 }
 
-async function slackTestGuidanceSetup() {
-  heading('Test Slack messaging');
-  const guidance = await getSlackTestGuidanceAction();
-
-  printSummary('Slack test guidance', [
-    `Slack setup: ${guidance.data.slackSetupUrl}`,
-    'Suggested Slack commands: /rootly new, /rootly help',
-    ...guidance.data.notes
-  ]);
-}
-
 async function vendorHandoffSetup() {
   heading('Connect vendor integration in Rootly web');
   console.log('These integrations are still connected through Rootly web.');
@@ -1593,8 +1600,13 @@ async function vendorHandoffSetup() {
     { label: 'Sentry' },
     { label: 'Grafana' },
     { label: 'PagerDuty' },
-    { label: 'Opsgenie' }
+    { label: 'Opsgenie' },
+    { label: 'Back to previous menu' }
   ]);
+
+  if (vendor.label === 'Back to previous menu') {
+    return;
+  }
 
   if (vendor.label === 'Slack') {
     await resumeAfterWebSetup(vendor.label);
@@ -1623,8 +1635,13 @@ async function mcpSetup() {
   ]);
   const tokenType = await choose('How will Rootly auth be provided?', [
     { label: 'Use stored token' },
-    { label: 'Use ROOTLY_TOKEN' }
+    { label: 'Use ROOTLY_TOKEN' },
+    { label: 'Back to previous menu' }
   ]);
+
+  if (tokenType.label === 'Back to previous menu') {
+    return;
+  }
 
   const writeConfig = await ask('Should I write the MCP config file for you? (y/n)', 'y');
   const preview = clients.map((client) => buildHostedMcpPreview(client.label, tokenType.label)).join('\n---\n');
@@ -1702,8 +1719,6 @@ async function runActionCommand() {
       result = await createTestAlertAction(inputPayload);
     } else if (actionName === 'create-test-incident') {
       result = await createTestIncidentAction(inputPayload);
-    } else if (actionName === 'get-slack-test-guidance') {
-      result = await getSlackTestGuidanceAction();
     } else if (actionName === 'start-web-handoff') {
       result = await startWebHandoffAction(inputPayload);
     } else if (actionName === 'preview-mcp-setup') {
@@ -1728,7 +1743,6 @@ async function runActionCommand() {
           'create-escalation-policy',
           'create-test-alert',
           'create-test-incident',
-          'get-slack-test-guidance',
           'start-web-handoff',
           'preview-mcp-setup',
           'apply-mcp-setup'
@@ -1871,8 +1885,6 @@ async function main() {
       await testAlertSetup();
     } else if (action === 'Create a test incident') {
       await testIncidentSetup();
-    } else if (action === 'Test Slack messaging') {
-      await slackTestGuidanceSetup();
     } else if (action === 'Connect vendor integration in Rootly web') {
       await vendorHandoffSetup();
     } else if (action === 'Disconnect') {

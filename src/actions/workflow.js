@@ -13,7 +13,7 @@ export function humanizeAction(action) {
     case 'create-escalation-policy':
       return 'Create an escalation policy';
     case 'hook-up-monitor':
-      return 'Hook up a monitor';
+      return 'Hook up a monitor (Datadog, Grafana, PagerDuty)';
     case 'connect-slack':
       return 'Connect Slack in Rootly';
     case 'create-test-incident':
