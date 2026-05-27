@@ -157,20 +157,27 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
 
   const policyId = payload?.data?.id || payload?.id || null;
 
+  // The default path is best-effort: a path failure must not discard the
+  // already-created policy (which would orphan it), so it is caught here.
   let pathCreated = false;
+  let pathError = null;
   if (createDefaultPath && policyId) {
-    await api.createEscalationPath(policyId, {
-      name: `${name} Path`,
-      notification_type: 'audible',
-      path_type: 'escalation',
-      default: true,
-      match_mode: 'match-all-rules',
-      position: 1,
-      repeat: false,
-      initial_delay: 0,
-      rules: [{ rule_type: 'alert_urgency', urgency_ids: [] }]
-    });
-    pathCreated = true;
+    try {
+      await api.createEscalationPath(policyId, {
+        name: `${name} Path`,
+        notification_type: 'audible',
+        path_type: 'escalation',
+        default: true,
+        match_mode: 'match-all-rules',
+        position: 1,
+        repeat: false,
+        initial_delay: 0,
+        rules: []
+      });
+      pathCreated = true;
+    } catch (error) {
+      pathError = formatError(error);
+    }
   }
 
   return {
@@ -181,12 +188,13 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
       teamId,
       name,
       repeatCount,
-      pathCreated
+      pathCreated,
+      pathError
     }
   };
 }
 
-export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'webhook' }) {
+export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'generic_webhook' }) {
   const api = await loadApiClient();
 
   const payload = await api.createAlertSource({
@@ -194,8 +202,7 @@ export async function createAlertSourceAction({ teamId, name = 'Generic webhook'
     source_type: sourceType,
     owner_group_ids: teamId ? [teamId] : [],
     sourceable_attributes: {
-      auto_resolve: false,
-      accept_threaded_emails: false
+      auto_resolve: false
     }
   });
 

@@ -2,7 +2,7 @@ process.env.ROOTLY_TOKEN = 'test-token';
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTeamAction, createScheduleAction, createEscalationPolicyAction } from '../src/actions/setup.js';
+import { createTeamAction, createScheduleAction, createEscalationPolicyAction, createAlertSourceAction } from '../src/actions/setup.js';
 
 const originalFetch = globalThis.fetch;
 
@@ -104,7 +104,10 @@ test('createEscalationPolicyAction creates a default path only when requested', 
   const created = await createEscalationPolicyAction({ teamId: '100', name: 'Default', createDefaultPath: true });
   assert.equal(created.data.id, 'ep1');
   assert.equal(created.data.pathCreated, true);
-  assert.ok(withPath.some((c) => c.href.includes('/v1/escalation_policies/ep1/escalation_paths') && c.method === 'POST'));
+  assert.equal(created.data.pathError, null);
+  const pathCall = withPath.find((c) => c.href.includes('/v1/escalation_policies/ep1/escalation_paths') && c.method === 'POST');
+  assert.ok(pathCall);
+  assert.deepEqual(pathCall.body.data.attributes.rules, []);
 
   globalThis.fetch = originalFetch;
 
@@ -115,4 +118,36 @@ test('createEscalationPolicyAction creates a default path only when requested', 
   const skipped = await createEscalationPolicyAction({ teamId: '100', name: 'Default' });
   assert.equal(skipped.data.pathCreated, false);
   assert.equal(withoutPath.some((c) => c.href.includes('/escalation_paths')), false);
+});
+
+test('createAlertSourceAction posts a generic_webhook source', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/alert_sources') && req.method === 'POST') {
+      return { status: 201, body: { data: { id: 'as1', attributes: { webhook_endpoint: 'https://hook.example' } } } };
+    }
+    return { body: {} };
+  });
+
+  const result = await createAlertSourceAction({ teamId: '100', name: 'My webhook' });
+  assert.equal(result.data.id, 'as1');
+  assert.equal(result.data.webhookEndpoint, 'https://hook.example');
+
+  const attrs = calls.find((c) => c.href.endsWith('/v1/alert_sources') && c.method === 'POST').body.data.attributes;
+  assert.equal(attrs.source_type, 'generic_webhook');
+  assert.deepEqual(attrs.owner_group_ids, ['100']);
+});
+
+test('createEscalationPolicyAction keeps the policy when the default path fails', async () => {
+  installFetch((req) => {
+    if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep3' } } };
+    if (req.href.includes('/escalation_paths') && req.method === 'POST') {
+      return { ok: false, status: 422, body: { errors: [{ detail: 'Urgency IDs are required' }] } };
+    }
+    return { body: {} };
+  });
+  const result = await createEscalationPolicyAction({ teamId: '100', name: 'Default', createDefaultPath: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.data.id, 'ep3');
+  assert.equal(result.data.pathCreated, false);
+  assert.ok(result.data.pathError);
 });

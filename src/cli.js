@@ -905,6 +905,13 @@ async function runWorkspaceSetup(state) {
       createDefaultPath: Boolean(scheduleId)
     });
     escalationPolicyId = escalationResult.data.id;
+    if (escalationResult.data.pathError) {
+      printSummary('Escalation path note', [
+        'The escalation policy was created, but the default path was not added automatically.',
+        `Rootly said: ${escalationResult.data.pathError}`,
+        'You can add the first path in Rootly if needed.'
+      ]);
+    }
   } catch (error) {
     const failure = serializeActionError(error, 'The team exists, but the default escalation policy was not created.');
     printSummary('Escalation policy needs attention', [
