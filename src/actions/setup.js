@@ -112,24 +112,29 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
 
-  const createdSchedule = await api.createSchedule({
+  const selfId = currentUserId && !isServiceAccount(currentUser) ? currentUserId : null;
+
+  // Rootly requires a schedule owner (a user-less API key is rejected without
+  // one). Prefer a real human — the signed-in user, else the first invited
+  // member — and only fall back to the current identity when none exists.
+  const ownerUserId = selfId || memberIds[0] || currentUserId;
+
+  const scheduleAttributes = {
     name,
     description: `Primary schedule for ${teamId}`,
     all_time_coverage: true,
-    owner_user_id: currentUserId,
-    owner_group_ids: [teamId]
-  });
+    owner_group_ids: [teamId],
+    owner_user_id: ownerUserId
+  };
 
+  const createdSchedule = await api.createSchedule(scheduleAttributes);
   const scheduleId = createdSchedule?.data?.id || createdSchedule?.id || null;
-  if (scheduleId) {
-    const rotationMembers = [currentUserId, ...memberIds]
-      .filter(Boolean)
-      .map((id, index) => ({
-        member_type: 'User',
-        member_id: id,
-        position: index + 1
-      }));
 
+  // Only build a rotation from real people; skip it entirely when there is
+  // no one to put on call (rather than create an empty or bot-only rotation).
+  const rotationMemberIds = [selfId, ...memberIds].filter(Boolean);
+  let rotationCreated = false;
+  if (scheduleId && rotationMemberIds.length) {
     await api.createScheduleRotation(scheduleId, {
       name: `${name} Primary Rotation`,
       schedule_rotationable_type: 'ScheduleDailyRotation',
@@ -137,8 +142,13 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
       position: 1,
       active_all_week: true,
       time_zone: 'Etc/UTC',
-      schedule_rotation_members: rotationMembers
+      schedule_rotation_members: rotationMemberIds.map((id, index) => ({
+        member_type: 'User',
+        member_id: id,
+        position: index + 1
+      }))
     });
+    rotationCreated = true;
   }
 
   return {
@@ -148,7 +158,8 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
       teamId,
       scheduleId,
       name,
-      handoffTime
+      handoffTime,
+      rotationCreated
     }
   };
 }

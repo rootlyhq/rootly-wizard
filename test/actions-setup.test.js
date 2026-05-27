@@ -109,6 +109,47 @@ test('createScheduleAction adds the current user and members to the rotation in 
   ]);
 });
 
+test('createScheduleAction does not put a service account on the rotation', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '99', attributes: { email: 'bot+apikey-x@rootly.com' } } } };
+    if (req.href.endsWith('/v1/schedules') && req.method === 'POST') return { body: { data: { id: 'sch1' } } };
+    if (req.href.includes('/schedule_rotations') && req.method === 'POST') return { body: { data: { id: 'rot1' } } };
+    return { body: {} };
+  });
+
+  const result = await createScheduleAction({ teamId: 't1', name: 'On-Call' });
+  assert.equal(result.data.scheduleId, 'sch1');
+  assert.equal(result.data.rotationCreated, false);
+  assert.equal(calls.some((c) => c.href.includes('/schedule_rotations')), false);
+
+  // No human is available, so the required owner falls back to the current
+  // identity, but the rotation (who is on call) is left empty.
+  const scheduleAttrs = calls.find((c) => c.href.endsWith('/v1/schedules') && c.method === 'POST').body.data.attributes;
+  assert.equal(scheduleAttrs.owner_user_id, '99');
+});
+
+test('createScheduleAction builds the rotation from real members only', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '99', attributes: { email: 'bot+apikey-x@rootly.com' } } } };
+    if (req.href.endsWith('/v1/schedules') && req.method === 'POST') return { body: { data: { id: 'sch1' } } };
+    if (req.href.includes('/schedule_rotations') && req.method === 'POST') return { body: { data: { id: 'rot1' } } };
+    return { body: {} };
+  });
+
+  const result = await createScheduleAction({ teamId: 't1', name: 'On-Call', memberIds: [7, 9] });
+  assert.equal(result.data.rotationCreated, true);
+
+  // Owner falls back to the first real invited member, not the service account.
+  const scheduleAttrs = calls.find((c) => c.href.endsWith('/v1/schedules') && c.method === 'POST').body.data.attributes;
+  assert.equal(scheduleAttrs.owner_user_id, 7);
+
+  const members = calls.find((c) => c.href.includes('/schedule_rotations') && c.method === 'POST').body.data.attributes.schedule_rotation_members;
+  assert.deepEqual(members, [
+    { member_type: 'User', member_id: 7, position: 1 },
+    { member_type: 'User', member_id: 9, position: 2 }
+  ]);
+});
+
 test('createEscalationPolicyAction creates a default path only when requested', async () => {
   const withPath = installFetch((req) => {
     if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep1' } } };
