@@ -499,6 +499,7 @@ async function chooseMenuAction(state) {
 
   if (category.action === 'Inspect') {
     const inspectAction = await choose('Inspect', [
+      { label: 'Setup status', action: 'Setup status' },
       { label: 'Check readiness', action: 'Check readiness' },
       { label: 'View teams', action: 'View teams' },
       { label: 'View schedules', action: 'View schedules' },
@@ -1754,13 +1755,13 @@ async function main() {
     ]);
   }
 
+  let showStatus = true;
   while (true) {
     const state = await loadOnboardingState();
-    if (state) {
-      console.log('Checking your Rootly setup...');
-      separator();
+    if (state && showStatus) {
       printStartupStatus(state);
     }
+    showStatus = false;
 
     const checkpoint = await readSessionCheckpoint();
     if (checkpoint?.kind === 'web-handoff') {
@@ -1778,7 +1779,11 @@ async function main() {
       continue;
     }
 
-    if (action === 'Continue recommended setup') {
+    if (action === 'Setup status') {
+      if (state) {
+        printStartupStatus(state);
+      }
+    } else if (action === 'Continue recommended setup') {
       await continueRecommendedSetup(state);
     } else if (action === 'Run guided setup') {
       await accountSetup();
