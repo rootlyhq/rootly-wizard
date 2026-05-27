@@ -1,3 +1,5 @@
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
 export class RootlyApiClient {
   constructor(token, baseUrl = 'https://api.rootly.com') {
     this.token = token;
@@ -13,6 +15,7 @@ export class RootlyApiClient {
         ...(options.body ? { 'Content-Type': 'application/vnd.api+json' } : {}),
         ...(options.headers || {})
       },
+      signal: options.signal || AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS),
       ...(options.body ? { body: JSON.stringify(options.body) } : {})
     });
 
@@ -32,6 +35,10 @@ export class RootlyApiClient {
     return this.request('/v1/teams?include=users,schedules,escalation_policies');
   }
 
+  async getTeam(id) {
+    return this.request(`/v1/teams/${id}?include=users`);
+  }
+
   async listUsers() {
     return this.request('/v1/users');
   }
@@ -42,6 +49,22 @@ export class RootlyApiClient {
 
   async listEscalationPolicies() {
     return this.request('/v1/escalation_policies');
+  }
+
+  async listSeverities() {
+    return this.request('/v1/severities');
+  }
+
+  async listServices() {
+    return this.request('/v1/services');
+  }
+
+  async listEnvironments() {
+    return this.request('/v1/environments');
+  }
+
+  async listIncidentTypes() {
+    return this.request('/v1/incident_types');
   }
 
   async createTeam(attributes) {
@@ -104,6 +127,18 @@ export class RootlyApiClient {
     });
   }
 
+  async createEscalationPath(escalationPolicyId, attributes) {
+    return this.request(`/v1/escalation_policies/${escalationPolicyId}/escalation_paths`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'escalation_paths',
+          attributes
+        }
+      }
+    });
+  }
+
   async createAlertSource(attributes) {
     return this.request('/v1/alert_sources', {
       method: 'POST',
@@ -141,7 +176,21 @@ export class RootlyApiClient {
   }
 
   async findUserByEmail(email) {
-    const payload = await this.listUsers();
-    return payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === email.toLowerCase()) || null;
+    const target = String(email).toLowerCase();
+    let next = '/v1/users';
+    let pagesScanned = 0;
+
+    while (next && pagesScanned < 100) {
+      pagesScanned += 1;
+      const payload = await this.request(next);
+      const match = payload?.data?.find((user) => user?.attributes?.email?.toLowerCase() === target);
+      if (match) {
+        return match;
+      }
+
+      next = payload?.links?.next || null;
+    }
+
+    return null;
   }
 }

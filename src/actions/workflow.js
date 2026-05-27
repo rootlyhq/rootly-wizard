@@ -5,19 +5,19 @@ export function humanizeAction(action) {
     case 'run-guided-setup':
       return 'Review remaining setup';
     case 'create-team':
-      return 'Create a team';
+      return 'Create the first team';
     case 'invite-team-members':
-      return 'Add team members';
+      return 'Add members to a team';
     case 'create-schedule':
-      return 'Create a schedule';
+      return 'Create the first on-call schedule';
     case 'create-escalation-policy':
-      return 'Create an escalation policy';
+      return 'Create the first escalation policy';
     case 'hook-up-monitor':
-      return 'Hook up a monitor';
+      return 'Hook up a generic webhook monitor';
     case 'connect-slack':
-      return 'Connect Slack in Rootly';
+      return 'Connect Slack in Rootly web';
     case 'create-test-incident':
-      return 'Create a test incident';
+      return 'Create a test incident in Slack';
     default:
       return 'Continue setup';
   }

@@ -1,5 +1,4 @@
 import { loadApiClient } from '../runtime.js';
-import { webHandoffUrl } from './integrations.js';
 
 function cleanIds(values = []) {
   return values.map((value) => String(value).trim()).filter(Boolean);
@@ -91,21 +90,6 @@ export async function createTestIncidentAction({
       slackChannelName: responseAttributes.slack_channel_name || null,
       slackChannelUrl: responseAttributes.slack_channel_url || null,
       slackDeepLink: responseAttributes.slack_channel_deep_link || null
-    }
-  };
-}
-
-export async function getSlackTestGuidanceAction() {
-  return {
-    ok: true,
-    summary: 'Slack test still uses Rootly and Slack directly.',
-    data: {
-      slackSetupUrl: webHandoffUrl('Slack'),
-      suggestedCommands: ['/rootly new', '/rootly help'],
-      notes: [
-        'The wizard does not post a Slack message directly.',
-        'Use the Slack integration flow in Rootly, then create a test incident or use /rootly new in Slack.'
-      ]
     }
   };
 }

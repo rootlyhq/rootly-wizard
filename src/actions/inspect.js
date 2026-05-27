@@ -1,4 +1,4 @@
-import { getActiveToken, loadApiClient, loadOnboardingState } from '../runtime.js';
+import { getActiveToken, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
 
 export async function getStatusAction() {
   const state = await loadOnboardingState();
@@ -14,8 +14,8 @@ export async function getStatusAction() {
   return {
     ok: true,
     summary: 'Loaded workspace status.',
-    nextBestAction: state.onboarding.nextBestAction,
     data: {
+      nextBestAction: state.onboarding.nextBestAction,
       workspace: state.teams.workspace?.name || state.teams.workspace?.slug || 'Connected Rootly account',
       teams: state.teams.total,
       teamsWithMembers: state.teams.teamsWithMembers,
@@ -41,8 +41,8 @@ export async function getReadinessAction() {
   return {
     ok: true,
     summary: 'Loaded onboarding readiness.',
-    nextBestAction: state.onboarding.nextBestAction,
     data: {
+      nextBestAction: state.onboarding.nextBestAction,
       workspace: state.teams.workspace,
       onboarding: state.onboarding,
       teams: state.teams
@@ -139,3 +139,75 @@ export async function getEscalationPoliciesAction() {
     }
   };
 }
+
+async function listResourceAction(method, label, mapItem) {
+  const token = await getActiveToken();
+  if (!token) {
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      summary: 'No auth context found.',
+      data: null
+    };
+  }
+
+  const api = await loadApiClient();
+  const payload = await api[method]();
+  const items = (payload?.data || []).map(mapItem);
+
+  return {
+    ok: true,
+    summary: `Loaded ${label}.`,
+    data: { total: items.length, items }
+  };
+}
+
+export async function getTeamMembersAction({ teamId } = {}) {
+  const token = await getActiveToken();
+  if (!token) {
+    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
+  }
+
+  const api = await loadApiClient();
+  const payload = await api.getTeam(teamId);
+  const team = payload?.data;
+  const usersById = new Map((payload?.included || [])
+    .filter((record) => record.type === 'users')
+    .map((record) => [record.id, record]));
+
+  const members = (team?.relationships?.users?.data || []).map(({ id }) => {
+    const record = usersById.get(id);
+    return {
+      id,
+      email: record?.attributes?.email || null,
+      name: record?.attributes?.full_name || record?.attributes?.name || null,
+      serviceAccount: isServiceAccount(record)
+    };
+  });
+
+  return {
+    ok: true,
+    summary: `Loaded members for team ${teamId}.`,
+    data: {
+      teamId,
+      teamName: team?.attributes?.name || teamId,
+      total: members.length,
+      members
+    }
+  };
+}
+
+const byName = (record) => ({
+  id: record.id,
+  name: record?.attributes?.name || record?.attributes?.slug || record.id
+});
+
+export const getServicesAction = () => listResourceAction('listServices', 'services', byName);
+export const getSeveritiesAction = () => listResourceAction('listSeverities', 'severities', byName);
+export const getEnvironmentsAction = () => listResourceAction('listEnvironments', 'environments', byName);
+export const getIncidentTypesAction = () => listResourceAction('listIncidentTypes', 'incident types', byName);
+export const getUsersAction = () => listResourceAction('listUsers', 'users', (record) => ({
+  id: record.id,
+  email: record?.attributes?.email || null,
+  name: record?.attributes?.full_name || record?.attributes?.name || null
+}));

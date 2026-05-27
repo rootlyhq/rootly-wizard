@@ -1,21 +1,53 @@
-import { extractTeamId, extractUserId, loadApiClient } from '../runtime.js';
+import { extractTeamId, extractUserId, isServiceAccount, loadApiClient } from '../runtime.js';
 
 function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
 }
 
-export async function createTeamAction({ name, description = 'Created during Rootly setup' }) {
+export async function createTeamAction({
+  name,
+  description = 'Created during Rootly setup',
+  memberEmails = [],
+  enableAlertsAndBroadcast = false
+} = {}) {
   const api = await loadApiClient();
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
 
-  const payload = await api.createTeam({
+  const cleanEmails = (memberEmails || []).map((value) => String(value).trim()).filter(Boolean);
+  const matchedUsers = [];
+  for (const email of cleanEmails) {
+    const match = await api.findUserByEmail(email);
+    if (match) {
+      matchedUsers.push(match);
+    }
+  }
+  const memberIds = matchedUsers
+    .map((user) => Number.parseInt(user.id, 10))
+    .filter(Number.isFinite);
+
+  // Only seed a real signed-in user as member/admin — never the API-key
+  // service account (it would surface as a bot+apikey member of the team).
+  const selfIds = currentUserId && !isServiceAccount(currentUser) ? [currentUserId] : [];
+
+  const attributes = {
     name,
     description,
-    user_ids: [currentUserId].filter(Boolean),
-    admin_ids: [currentUserId].filter(Boolean),
+    user_ids: [...selfIds, ...memberIds].filter(Boolean),
+    admin_ids: selfIds,
     auto_add_members_when_attached: true
-  });
+  };
+
+  if (cleanEmails.length) {
+    attributes.notify_emails = cleanEmails;
+  }
+
+  if (enableAlertsAndBroadcast) {
+    attributes.alerts_email_enabled = true;
+    attributes.incident_broadcast_enabled = true;
+  }
+
+  const payload = await api.createTeam(attributes);
 
   return {
     ok: true,
@@ -23,7 +55,13 @@ export async function createTeamAction({ name, description = 'Created during Roo
     data: {
       id: extractTeamId(payload),
       name,
-      description
+      description,
+      memberIds,
+      matchedUsers: matchedUsers.map((user) => ({
+        id: user.id,
+        email: user.attributes?.email || null,
+        name: user.attributes?.full_name || user.attributes?.name || null
+      }))
     }
   };
 }
@@ -62,27 +100,45 @@ export async function addTeamMembersAction({ teamId, emails }) {
       requestedEmails: cleanEmails,
       matchedUsers: resolvedMembers.map((user) => ({
         id: user.id,
-        email: user.attributes?.email
+        email: user.attributes?.email || null,
+        name: user.attributes?.full_name || user.attributes?.name || null
       }))
     }
   };
 }
 
-export async function createScheduleAction({ teamId, name, handoffTime = '09:00' }) {
+export async function createScheduleAction({ teamId, name, handoffTime = '09:00', memberIds = [] } = {}) {
   const api = await loadApiClient();
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
 
-  const createdSchedule = await api.createSchedule({
+  const selfId = currentUserId && !isServiceAccount(currentUser) ? currentUserId : null;
+
+  // Rootly requires a schedule owner (a user-less API key is rejected without
+  // one). Prefer a real human — the signed-in user, else the first invited
+  // member — and only fall back to the current identity when none exists.
+  const ownerUserId = selfId || memberIds[0] || currentUserId;
+
+  const scheduleAttributes = {
     name,
     description: `Primary schedule for ${teamId}`,
     all_time_coverage: true,
-    owner_user_id: currentUserId,
-    owner_group_ids: [teamId]
-  });
+    owner_group_ids: [teamId],
+    owner_user_id: ownerUserId
+  };
 
+  const createdSchedule = await api.createSchedule(scheduleAttributes);
   const scheduleId = createdSchedule?.data?.id || createdSchedule?.id || null;
-  if (scheduleId) {
+
+  // The rotation is exactly the members the caller chose; fall back to the
+  // signed-in user only when none were given. The service account is never
+  // placed on the rotation, and an empty rotation is skipped entirely.
+  const explicitMembers = (memberIds || []).map((id) => String(id)).filter(Boolean);
+  const rotationMemberIds = explicitMembers.length
+    ? [...new Set(explicitMembers)]
+    : (selfId ? [String(selfId)] : []);
+  let rotationCreated = false;
+  if (scheduleId && rotationMemberIds.length) {
     await api.createScheduleRotation(scheduleId, {
       name: `${name} Primary Rotation`,
       schedule_rotationable_type: 'ScheduleDailyRotation',
@@ -90,12 +146,13 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
       position: 1,
       active_all_week: true,
       time_zone: 'Etc/UTC',
-      schedule_rotation_members: currentUserId ? [{
+      schedule_rotation_members: rotationMemberIds.map((id, index) => ({
         member_type: 'User',
-        member_id: currentUserId,
-        position: 1
-      }] : []
+        member_id: id,
+        position: index + 1
+      }))
     });
+    rotationCreated = true;
   }
 
   return {
@@ -105,12 +162,13 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
       teamId,
       scheduleId,
       name,
-      handoffTime
+      handoffTime,
+      rotationCreated
     }
   };
 }
 
-export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1 }) {
+export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false } = {}) {
   const api = await loadApiClient();
 
   const payload = await api.createEscalationPolicy({
@@ -121,14 +179,68 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
     service_ids: []
   });
 
+  const policyId = payload?.data?.id || payload?.id || null;
+
+  // The default path is best-effort: a path failure must not discard the
+  // already-created policy (which would orphan it), so it is caught here.
+  let pathCreated = false;
+  let pathError = null;
+  if (createDefaultPath && policyId) {
+    try {
+      await api.createEscalationPath(policyId, {
+        name: `${name} Path`,
+        notification_type: 'audible',
+        path_type: 'escalation',
+        default: true,
+        match_mode: 'match-all-rules',
+        position: 1,
+        repeat: false,
+        initial_delay: 0,
+        rules: []
+      });
+      pathCreated = true;
+    } catch (error) {
+      pathError = formatError(error);
+    }
+  }
+
   return {
     ok: true,
     summary: `Created escalation policy ${name}.`,
     data: {
-      id: payload?.data?.id || payload?.id || null,
+      id: policyId,
       teamId,
       name,
-      repeatCount
+      repeatCount,
+      pathCreated,
+      pathError
+    }
+  };
+}
+
+export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'generic_webhook' }) {
+  const api = await loadApiClient();
+
+  const payload = await api.createAlertSource({
+    name,
+    source_type: sourceType,
+    owner_group_ids: teamId ? [teamId] : [],
+    sourceable_attributes: {
+      auto_resolve: false
+    }
+  });
+
+  const attributes = payload?.data?.attributes || {};
+
+  return {
+    ok: true,
+    summary: `Created alert source ${name}.`,
+    data: {
+      id: payload?.data?.id || null,
+      name,
+      teamId: teamId || null,
+      webhookEndpoint: attributes.webhook_endpoint || null,
+      secret: attributes.secret || null
     }
   };
 }
