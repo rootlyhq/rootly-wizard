@@ -358,15 +358,56 @@ function printDoctorSummary(state) {
   ].filter(Boolean));
 }
 
+function statusMark(level) {
+  switch (level) {
+    case 'ok':
+      return tone('✓', FG_GREEN);
+    case 'partial':
+      return tone('◐', FG_AMBER);
+    case 'none':
+      return tone('✗', FG_RED);
+    default:
+      return tone('–', FG_SLATE);
+  }
+}
+
+function readinessMark(value) {
+  switch (value) {
+    case 'done':
+    case 'ready':
+    case 'complete':
+      return statusMark('ok');
+    case 'in-progress':
+    case 'in progress':
+    case 'partial':
+      return statusMark('partial');
+    default:
+      return statusMark('none');
+  }
+}
+
+function alertingLabel(value) {
+  switch (value) {
+    case 'done':
+      return 'ready';
+    case 'in-progress':
+      return 'in progress';
+    default:
+      return 'needed';
+  }
+}
+
 function printStartupStatus(state) {
+  const teams = state.teams;
+  const alerting = state.onboarding.readiness.alertingSetup;
   printKeyValuePanel('Rootly status', [
-    { label: 'Workspace', value: state.teams.workspace?.name || state.teams.workspace?.slug || 'Connected Rootly account' },
-    { label: 'Teams', value: String(state.teams.total) },
-    { label: 'Teams w/ members', value: `${state.teams.teamsWithMembers}/${state.teams.total}` },
-    { label: 'Teams w/ on-call', value: `${state.teams.teamsWithSchedules}/${state.teams.total}` },
-    { label: 'Teams w/ escalation', value: `${state.teams.teamsWithEscalationPolicies}/${state.teams.total}` },
-    { label: 'Alerting', value: state.onboarding.readiness.alertingSetup },
-    { label: 'Slack coverage', value: `${state.teams.teamsWithSlack}/${state.teams.total}` }
+    { label: 'Workspace', value: teams.workspace?.name || teams.workspace?.slug || 'Connected Rootly account' },
+    { label: 'Teams', value: String(teams.total) },
+    { label: 'Teams w/ members', value: `${teams.teamsWithMembers}/${teams.total}` },
+    { label: 'Teams w/ on-call', value: `${teams.teamsWithSchedules}/${teams.total}` },
+    { label: 'Teams w/ escalation', value: `${teams.teamsWithEscalationPolicies}/${teams.total}` },
+    { label: 'Alerting', value: `${readinessMark(alerting)} ${alertingLabel(alerting)}` },
+    { label: 'Slack coverage', value: `${teams.teamsWithSlack}/${teams.total}` }
   ]);
   printCallout('Next best action', [humanizeAction(state.onboarding.nextBestAction)]);
 }
