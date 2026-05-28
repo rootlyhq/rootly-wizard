@@ -1362,11 +1362,6 @@ async function alertSourceSetup() {
     printStartupStatus(state);
   }
 
-  const team = state ? await chooseTeamRecord(state, 'Which team should own this alert source?') : null;
-  if (state?.teams?.all?.length && !team) {
-    return;
-  }
-
   const source = await choose('Which alert source are we setting up?', [
     { label: 'Generic webhook' },
     { label: 'Back to previous menu' }
@@ -1375,7 +1370,7 @@ async function alertSourceSetup() {
     return;
   }
 
-  const name = await ask('Alert source name', team ? `${team.name} Generic webhook` : 'Generic webhook');
+  const name = await ask('Alert source name', 'Generic webhook');
 
   const confirm = await ask(`Create ${name} now? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1384,7 +1379,7 @@ async function alertSourceSetup() {
   }
 
   try {
-    const result = await createAlertSourceAction({ teamId: team?.id, name });
+    const result = await createAlertSourceAction({ name });
 
     printSummary('Alert source created', [
       `Source: ${name}`,
