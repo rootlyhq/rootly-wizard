@@ -6,7 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
-import { buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
+import { addClaudeCodeUserScope, buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
 import { deleteToken, getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import { RootlyApiClient } from './rootly-api.js';
 import { getActiveToken, loadApiClient, loadOnboardingState } from './runtime.js';
@@ -1562,6 +1562,18 @@ async function mcpSetup() {
     return;
   }
 
+  // Claude Code is the only client whose config is project-scoped (a .mcp.json
+  // in the current directory). Default it to global so Rootly MCP works in
+  // every project, with an explicit project-only opt-in.
+  let claudeCodeGlobal = false;
+  if (clients.some((client) => client.label === 'Claude Code')) {
+    const scope = await choose('Where should Claude Code use Rootly MCP?', [
+      { label: 'All projects (recommended)', value: 'user' },
+      { label: 'This project only (writes .mcp.json here)', value: 'project' }
+    ]);
+    claudeCodeGlobal = scope.value === 'user';
+  }
+
   const writeConfig = await ask('Should I write the MCP config file for you? (y/n)', 'y');
   const preview = clients.map((client) => buildHostedMcpPreview(client.label, tokenType.label)).join('\n---\n');
 
@@ -1591,14 +1603,25 @@ async function mcpSetup() {
   }
 
   const results = [];
+  const manualCommands = [];
   for (const client of clients) {
+    if (client.label === 'Claude Code' && claudeCodeGlobal) {
+      const outcome = addClaudeCodeUserScope(token);
+      results.push({ client: client.label, targetPath: outcome.target });
+      if (!outcome.ran) {
+        manualCommands.push(outcome.command);
+      }
+      continue;
+    }
+
     const { targetPath, backupPath } = await writeHostedMcpConfig(client.label, token);
     await verifyHostedMcpConfig(client.label);
     results.push({ client: client.label, targetPath, backupPath });
   }
 
-  const writesPlaintextToken = clients.some((client) => client.label !== 'Codex');
-  const writesProjectConfig = clients.some((client) => client.label === 'Claude Code');
+  const wroteFiles = clients.some((client) => !(client.label === 'Claude Code' && claudeCodeGlobal));
+  const writesPlaintextToken = clients.some((client) => client.label !== 'Codex' && !(client.label === 'Claude Code' && claudeCodeGlobal));
+  const writesProjectConfig = clients.some((client) => client.label === 'Claude Code') && !claudeCodeGlobal;
   const authSummary = tokenType.label === 'Use stored token' ? await getAuthSummary() : null;
   const usingOAuthToken = authSummary?.mode === 'oauth';
 
@@ -1607,9 +1630,10 @@ async function mcpSetup() {
     `Auth: ${tokenType.label}`,
     ...results.map((result) => `${result.client}: ${result.targetPath}`),
     ...results.filter((result) => result.backupPath).map((result) => `${result.client} backup: ${result.backupPath}`),
-    'Config verified successfully for each selected client',
+    wroteFiles ? 'Config verified successfully for each file-based client' : null,
+    ...manualCommands.map((command) => `Run this to finish Claude Code (claude CLI not found): ${command}`),
     writesPlaintextToken ? 'Note: the token is stored in plaintext in these config files. Keep them out of version control.' : null,
-    writesProjectConfig ? 'Note: Claude Code config is written to .mcp.json in this directory — add it to .gitignore.' : null,
+    writesProjectConfig ? 'Note: Claude Code config is written to .mcp.json in this directory — keep it out of version control (it is gitignored here).' : null,
     usingOAuthToken ? 'Note: browser sign-in uses a short-lived token, so this MCP config can stop working when it expires. Use an API key for durable MCP access.' : null,
     'Next step: restart the client if needed and verify the connection'
   ]));

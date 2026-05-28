@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 const HOSTED_MCP_URL = 'https://mcp.rootly.com/mcp';
 
@@ -179,6 +180,37 @@ export async function writeHostedMcpConfig(client, token) {
 
 export function getMcpConfigPath(client) {
   return configFileForClient(client);
+}
+
+// Claude Code stores user-scoped (global) MCP servers in ~/.claude.json. The
+// supported way to register one is the `claude` CLI, which manages that file
+// correctly, rather than hand-editing it.
+export function buildClaudeCodeUserCommandArgs(token) {
+  return ['mcp', 'add', '--scope', 'user', '--transport', 'http', 'rootly', HOSTED_MCP_URL, '--header', `Authorization: Bearer ${token}`];
+}
+
+export function claudeCodeUserCommandDisplay() {
+  return `claude mcp add --scope user --transport http rootly ${HOSTED_MCP_URL} --header "Authorization: Bearer <YOUR_ROOTLY_API_TOKEN>"`;
+}
+
+function claudeCliAvailable() {
+  try {
+    const result = spawnSync('claude', ['--version'], { stdio: 'ignore' });
+    return !result.error && result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+export function addClaudeCodeUserScope(token) {
+  const display = claudeCodeUserCommandDisplay();
+
+  if (!claudeCliAvailable()) {
+    return { ran: false, target: 'user scope (~/.claude.json)', command: display };
+  }
+
+  const result = spawnSync('claude', buildClaudeCodeUserCommandArgs(token), { stdio: 'ignore' });
+  return { ran: !result.error && result.status === 0, target: 'user scope (~/.claude.json)', command: display };
 }
 
 export async function verifyHostedMcpConfig(client) {

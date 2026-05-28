@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildHostedMcpPreview, getMcpConfigPath } from '../src/mcp.js';
+import { buildClaudeCodeUserCommandArgs, buildHostedMcpPreview, getMcpConfigPath } from '../src/mcp.js';
 
 test('preview embeds the hosted endpoint and a token placeholder for JSON clients', () => {
   const preview = buildHostedMcpPreview('Cursor', 'Use stored token');
@@ -23,4 +23,12 @@ test('Claude Code config path is the project-local .mcp.json', () => {
 test('Cursor config path is under the user .cursor directory', () => {
   const target = getMcpConfigPath('Cursor');
   assert.match(target, /\.cursor[/\\]mcp\.json$/);
+});
+
+test('Claude Code user-scope command targets the hosted MCP with a bearer header', () => {
+  const args = buildClaudeCodeUserCommandArgs('tok-123');
+  assert.deepEqual(args, [
+    'mcp', 'add', '--scope', 'user', '--transport', 'http', 'rootly',
+    'https://mcp.rootly.com/mcp', '--header', 'Authorization: Bearer tok-123'
+  ]);
 });
