@@ -106,6 +106,11 @@ function panelTitle(text) {
   return output.isTTY ? `${FG_BLUE}${text}${RESET}` : text;
 }
 
+function printMenuTransition() {
+  console.log(output.isTTY ? `${DIM}${FG_SLATE}${'─'.repeat(24)}${RESET}` : '-'.repeat(24));
+  separator();
+}
+
 function printKeyValuePanel(title, rows) {
   heading(title);
   rows.forEach(({ label, value }) => {
@@ -523,6 +528,7 @@ async function chooseMenuAction(state) {
   }
 
   if (category.action === 'Setup') {
+    printMenuTransition();
     const setupAction = await choose('Setup', [
       { label: 'Run guided setup', action: 'Run guided setup' },
       { label: 'Create a team', action: 'Create a team' },
@@ -535,6 +541,7 @@ async function chooseMenuAction(state) {
   }
 
   if (category.action === 'Integrations') {
+    printMenuTransition();
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
       { label: 'Hook up a monitor (Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
@@ -545,6 +552,7 @@ async function chooseMenuAction(state) {
   }
 
   if (category.action === 'Verify') {
+    printMenuTransition();
     const verifyAction = await choose('Verify', [
       { label: 'Send a test alert', action: 'Send a test alert' },
       { label: 'Create a test incident', action: 'Create a test incident' },
@@ -554,6 +562,7 @@ async function chooseMenuAction(state) {
   }
 
   if (category.action === 'Inspect') {
+    printMenuTransition();
     await inspectMenu();
     return 'Back';
   }
