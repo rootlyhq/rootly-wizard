@@ -511,13 +511,14 @@ async function chooseMenuAction(state) {
     { label: 'Status', action: 'Status' },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
+    { label: 'Verify (test alerting and incident flow)', action: 'Verify' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
     { label: 'Inspect (readiness, teams, schedules)', action: 'Inspect' },
     { label: 'Disconnect', action: 'Disconnect' },
     { label: 'Exit wizard', action: 'Exit wizard' }
   ]);
 
-  if (category.action !== 'Setup' && category.action !== 'Integrations' && category.action !== 'Inspect') {
+  if (category.action !== 'Setup' && category.action !== 'Integrations' && category.action !== 'Verify' && category.action !== 'Inspect') {
     return category.action;
   }
 
@@ -537,12 +538,19 @@ async function chooseMenuAction(state) {
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
       { label: 'Hook up a monitor (Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
-      { label: 'Send a test alert', action: 'Send a test alert' },
-      { label: 'Create a test incident', action: 'Create a test incident' },
       { label: 'Connect vendor integration in Rootly web', action: 'Connect vendor integration in Rootly web' },
       { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
+  }
+
+  if (category.action === 'Verify') {
+    const verifyAction = await choose('Verify', [
+      { label: 'Send a test alert', action: 'Send a test alert' },
+      { label: 'Create a test incident', action: 'Create a test incident' },
+      { label: 'Back to main menu', action: 'Back' }
+    ]);
+    return verifyAction.action;
   }
 
   if (category.action === 'Inspect') {
@@ -1032,7 +1040,8 @@ async function runWorkspaceSetup(state) {
 
   printSummary('What comes next', [
     'Slack still uses the existing Rootly web flow.',
-    'Use the Slack handoff when you are ready to wire incident channels.'
+    'Use the Slack handoff when you are ready to wire incident channels.',
+    'Use Verify when you want to send a test alert or create a test incident.'
   ]);
 }
 
