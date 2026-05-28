@@ -545,7 +545,6 @@ async function chooseMenuAction(state) {
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
       { label: 'Hook up a monitor (Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
-      { label: 'Connect vendor integration in Rootly web', action: 'Connect vendor integration in Rootly web' },
       { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
@@ -1364,7 +1363,7 @@ async function slackSetup() {
 
 async function alertSourceSetup() {
   heading('Hook up a monitor');
-  console.log('The wizard can set up a generic webhook alert source directly.');
+  console.log('Choose a monitor or alert source to connect.');
   separator();
   const state = await loadOnboardingState();
   if (state) {
@@ -1373,9 +1372,19 @@ async function alertSourceSetup() {
 
   const source = await choose('Which alert source are we setting up?', [
     { label: 'Generic webhook' },
+    { label: 'Datadog' },
+    { label: 'Grafana' },
+    { label: 'PagerDuty' },
+    { label: 'Opsgenie' },
+    { label: 'Sentry' },
     { label: 'Back to previous menu' }
   ]);
   if (source.label === 'Back to previous menu') {
+    return;
+  }
+
+  if (source.label !== 'Generic webhook') {
+    await resumeAfterWebSetup(source.label, { detectable: false });
     return;
   }
 
