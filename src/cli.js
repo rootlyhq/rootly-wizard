@@ -480,6 +480,12 @@ async function chooseMany(question, options) {
     });
 
     const raw = await rl.question(`${tone('Select one or more options', FG_SLATE)} (comma-separated): `);
+    if (!raw.trim()) {
+      const skipOption = options.find((option) => option.value === PICK_SKIP || option.action === 'back');
+      if (skipOption) {
+        return [skipOption];
+      }
+    }
     const indexes = raw
       .split(',')
       .map((value) => Number.parseInt(value.trim(), 10) - 1)
@@ -502,7 +508,7 @@ async function chooseMenuAction(state) {
 
   const category = await choose('What would you like to do?', [
     { label: `Continue recommended setup (${recommended})`, action: 'Continue recommended setup' },
-    { label: 'Setup status', action: 'Setup status' },
+    { label: 'Status', action: 'Status' },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
@@ -1409,6 +1415,22 @@ function extractResourceOptions(payload) {
 
 const PICK_MANUAL = '__manual__';
 const PICK_SKIP = '__skip__';
+const SEVERITY_LABELS = {
+  'SEV 0': 'SEV 0 (Critical)',
+  'SEV 1': 'SEV 1 (High)',
+  'SEV 2': 'SEV 2 (Medium)',
+  'SEV 3': 'SEV 3 (Low)',
+  'SEV 4': 'SEV 4 (Minimal)'
+};
+const SEVERITY_ORDER = ['SEV 0', 'SEV 1', 'SEV 2', 'SEV 3', 'SEV 4'];
+
+function formatResourceOptionLabel(label, option) {
+  if (label === 'Severity') {
+    return SEVERITY_LABELS[option.name] || option.name;
+  }
+
+  return option.name;
+}
 
 async function pickResourceIds(label, api, method, { multi = true } = {}) {
   let options = [];
@@ -1420,6 +1442,16 @@ async function pickResourceIds(label, api, method, { multi = true } = {}) {
     }
   }
 
+  if (label === 'Severity') {
+    options = [...options].sort((a, b) => {
+      const aIndex = SEVERITY_ORDER.indexOf(a.name);
+      const bIndex = SEVERITY_ORDER.indexOf(b.name);
+      const safeA = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+      const safeB = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+      return safeA - safeB;
+    });
+  }
+
   if (!options.length) {
     if (multi) {
       return parseIdList(await ask(`${label} IDs (comma-separated, optional)`, ''));
@@ -1428,7 +1460,7 @@ async function pickResourceIds(label, api, method, { multi = true } = {}) {
   }
 
   const menu = [
-    ...options.map((option) => ({ label: `${option.name} (${option.id})`, value: option.id })),
+    ...options.map((option) => ({ label: formatResourceOptionLabel(label, option), value: option.id })),
     { label: 'Enter IDs manually', value: PICK_MANUAL },
     { label: 'Skip / none', value: PICK_SKIP }
   ];
@@ -1504,12 +1536,22 @@ async function testIncidentSetup() {
   const team = state ? await chooseTeamRecord(state, 'Which team should own this test incident?') : null;
   const title = await ask('Incident title', 'Rootly Wizard test incident');
   const summary = await ask('Summary', 'Test incident created from Rootly Wizard');
-  const api = await loadApiClientOrNull();
-  const severityId = await pickResourceIds('Severity', api, 'listSeverities', { multi: false });
-  const incidentTypeIds = await pickResourceIds('Incident types', api, 'listIncidentTypes');
-  const serviceIds = await pickResourceIds('Services', api, 'listServices');
-  const environmentIds = await pickResourceIds('Environments', api, 'listEnvironments');
-  const isPrivate = (await ask('Private incident? (y/n)', 'n')).toLowerCase().startsWith('y');
+  const addMoreFields = (await ask('Add more incident fields? (y/n)', 'n')).toLowerCase().startsWith('y');
+
+  let severityId = null;
+  let incidentTypeIds = [];
+  let serviceIds = [];
+  let environmentIds = [];
+  let isPrivate = false;
+
+  if (addMoreFields) {
+    const api = await loadApiClientOrNull();
+    severityId = await pickResourceIds('Severity', api, 'listSeverities', { multi: false });
+    incidentTypeIds = await pickResourceIds('Incident types', api, 'listIncidentTypes');
+    serviceIds = await pickResourceIds('Services', api, 'listServices');
+    environmentIds = await pickResourceIds('Environments', api, 'listEnvironments');
+    isPrivate = (await ask('Private incident? (y/n)', 'n')).toLowerCase().startsWith('y');
+  }
 
   const confirm = await ask(`Create test incident "${title}" now? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1539,7 +1581,9 @@ async function testIncidentSetup() {
     printSummary('Test incident needs attention', [
       failure.summary,
       `Rootly said: ${failure.error}`,
-      'Some Rootly workspaces require severity, incident type, or other form fields for incident creation.'
+      addMoreFields
+        ? 'Some Rootly workspaces require additional incident fields or permissions for incident creation.'
+        : 'If your workspace requires more incident fields, rerun this and choose to add them.'
     ]);
   }
 }
@@ -1842,6 +1886,39 @@ function formatTopLevelError(error) {
   return message;
 }
 
+function isWorkspaceAccessFailure(error) {
+  const message = error?.message || String(error);
+  return (
+    message.includes('/v1/teams') &&
+    (/\b401\b/.test(message) || /\b403\b/.test(message) || /Not found or unauthorized/i.test(message))
+  );
+}
+
+async function loadOnboardingStateInteractive() {
+  try {
+    return await loadOnboardingState();
+  } catch (error) {
+    if (!isWorkspaceAccessFailure(error)) {
+      throw error;
+    }
+
+    const authSummary = await getAuthSummary();
+    printSummary('Auth needs attention', [
+      authSummary?.label || 'Stored Rootly sign-in was found',
+      'The stored sign-in could not read this Rootly workspace.',
+      'Please sign in again to continue.'
+    ]);
+
+    await deleteToken();
+    const token = await authFlow();
+    if (!token) {
+      return null;
+    }
+
+    return loadOnboardingState();
+  }
+}
+
 async function main() {
   const entry = process.argv[2];
   if (entry === 'action') {
@@ -1907,8 +1984,8 @@ async function main() {
 
   const hasAuthContext = Boolean(process.env.ROOTLY_TOKEN?.trim() || (await getStoredToken()));
   if (!hasAuthContext) {
-    await authFlow();
-    if (process.exitCode) {
+    const token = await authFlow();
+    if (process.exitCode || !token) {
       rl.close();
       return;
     }
@@ -1922,7 +1999,11 @@ async function main() {
 
   let showStatus = true;
   while (true) {
-    const state = await loadOnboardingState();
+    const state = await loadOnboardingStateInteractive();
+    if (!state) {
+      rl.close();
+      return;
+    }
     if (state && showStatus) {
       printStartupStatus(state);
     }
@@ -1944,7 +2025,7 @@ async function main() {
       continue;
     }
 
-    if (action === 'Setup status') {
+    if (action === 'Status') {
       if (state) {
         printStartupStatus(state);
       }
