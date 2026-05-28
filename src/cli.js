@@ -461,6 +461,7 @@ async function chooseMenuAction(state) {
 
   const category = await choose('What would you like to do?', [
     { label: `Continue recommended setup (${recommended})`, action: 'Continue recommended setup' },
+    { label: 'Setup status', action: 'Setup status' },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
@@ -506,7 +507,6 @@ async function chooseMenuAction(state) {
 async function inspectMenu() {
   while (true) {
     const choice = await choose('Inspect', [
-      { label: 'Setup status', action: 'status' },
       { label: 'Check readiness', action: 'readiness' },
       { label: 'View teams', action: 'teams' },
       { label: 'View team members', action: 'members' },
@@ -519,12 +519,7 @@ async function inspectMenu() {
       return;
     }
 
-    if (choice.action === 'status') {
-      const state = await loadOnboardingState();
-      if (state) {
-        printStartupStatus(state);
-      }
-    } else if (choice.action === 'readiness') {
+    if (choice.action === 'readiness') {
       await readinessFlow();
     } else if (choice.action === 'teams') {
       await teamsFlow();
@@ -1884,7 +1879,11 @@ async function main() {
       continue;
     }
 
-    if (action === 'Continue recommended setup') {
+    if (action === 'Setup status') {
+      if (state) {
+        printStartupStatus(state);
+      }
+    } else if (action === 'Continue recommended setup') {
       await continueRecommendedSetup(state);
     } else if (action === 'Run guided setup') {
       await accountSetup();
