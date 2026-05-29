@@ -291,21 +291,131 @@ async function askHidden(question) {
 }
 
 async function choose(question, options) {
-  while (true) {
-    console.log(panelTitle(question));
-    options.forEach((option, index) => {
-      console.log(`  ${tone(`${index + 1}.`, FG_PURPLE)} ${option.label}`);
-    });
+  if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== 'function') {
+    while (true) {
+      console.log(panelTitle(question));
+      options.forEach((option, index) => {
+        console.log(`  ${tone(`${index + 1}.`, FG_PURPLE)} ${option.label}`);
+      });
 
-    const raw = await rl.question(`${tone('Select an option', FG_SLATE)}: `);
-    const index = Number.parseInt(raw, 10) - 1;
+      const raw = await rl.question(`${tone('Select an option', FG_SLATE)}: `);
+      const index = Number.parseInt(raw, 10) - 1;
 
-    if (!Number.isNaN(index) && index >= 0 && index < options.length) {
-      return options[index];
+      if (!Number.isNaN(index) && index >= 0 && index < options.length) {
+        return options[index];
+      }
+
+      console.log(`Please choose a number between 1 and ${options.length}.`);
+      separator();
+    }
+  }
+
+  rl.pause();
+  readline.emitKeypressEvents(input);
+  input.setRawMode(true);
+  input.resume();
+
+  let selectedIndex = 0;
+  let typedDigits = '';
+  let renderedLines = 0;
+
+  const render = () => {
+    if (renderedLines > 0) {
+      output.write(`\u001b[${renderedLines}A`);
+      output.write('\u001b[J');
     }
 
-    console.log(`Please choose a number between 1 and ${options.length}.`);
-    separator();
+    const lines = [
+      panelTitle(question),
+      ...options.map((option, index) => {
+        const active = index === selectedIndex;
+        const marker = active ? tone('›', FG_MUSTARD) : ' ';
+        const number = tone(`${index + 1}.`, FG_PURPLE);
+        const label = active ? `${BOLD}${FG_WHITE}${option.label}${RESET}` : option.label;
+        return ` ${marker} ${number} ${label}`;
+      }),
+      `${tone('Select an option', FG_SLATE)}: ${typedDigits}`
+    ];
+
+    output.write(`${lines.join('\n')}\n`);
+    renderedLines = lines.length;
+  };
+
+  render();
+
+  try {
+    return await new Promise((resolve) => {
+      const cleanup = () => {
+        input.off('keypress', onKeypress);
+        input.setRawMode(false);
+        rl.resume();
+      };
+
+      const chooseIndex = (index) => {
+        cleanup();
+        output.write('\n');
+        resolve(options[index]);
+      };
+
+      const onKeypress = (_str, key = {}) => {
+        if (key.ctrl && key.name === 'c') {
+          cleanup();
+          rl.close();
+          process.exit(1);
+        }
+
+        if (key.name === 'up') {
+          selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
+          typedDigits = '';
+          render();
+          return;
+        }
+
+        if (key.name === 'down') {
+          selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
+          typedDigits = '';
+          render();
+          return;
+        }
+
+        if (key.name === 'return' || key.name === 'enter') {
+          if (typedDigits) {
+            const typedIndex = Number.parseInt(typedDigits, 10) - 1;
+            if (!Number.isNaN(typedIndex) && typedIndex >= 0 && typedIndex < options.length) {
+              chooseIndex(typedIndex);
+              return;
+            }
+            typedDigits = '';
+            render();
+            return;
+          }
+
+          chooseIndex(selectedIndex);
+          return;
+        }
+
+        if (key.name === 'backspace') {
+          typedDigits = typedDigits.slice(0, -1);
+          render();
+          return;
+        }
+
+        if (/^[0-9]$/.test(key.sequence || '')) {
+          typedDigits += key.sequence;
+          const typedIndex = Number.parseInt(typedDigits, 10) - 1;
+          if (!Number.isNaN(typedIndex) && typedIndex >= 0 && typedIndex < options.length) {
+            selectedIndex = typedIndex;
+          }
+          render();
+        }
+      };
+
+      input.on('keypress', onKeypress);
+    });
+  } finally {
+    if (typeof input.setRawMode === 'function' && input.isTTY) {
+      input.setRawMode(false);
+    }
   }
 }
 
