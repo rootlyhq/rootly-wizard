@@ -194,6 +194,18 @@ async function ask(question, defaultValue = '') {
   return answer.trim() || defaultValue;
 }
 
+async function askRequired(question, defaultValue = '', emptyMessage = 'This field is required.') {
+  while (true) {
+    const answer = await ask(question, defaultValue);
+    if (String(answer).trim()) {
+      return answer.trim();
+    }
+
+    console.log(emptyMessage);
+    separator();
+  }
+}
+
 async function askHidden(question) {
   if (!input.isTTY || !output.isTTY) {
     const answer = await rl.question(`${tone(question, FG_SLATE)}: `);
@@ -540,7 +552,7 @@ function recommendedActionLabel(state) {
     case 'create-escalation-policy':
       return 'Create an escalation policy';
     case 'hook-up-monitor':
-      return 'Hook up a monitor (Datadog, Grafana, PagerDuty)';
+      return 'Connect an alert source';
     default:
       return 'Review remaining setup';
   }
@@ -654,7 +666,7 @@ async function chooseMenuAction(state) {
     printMenuTransition();
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
-      { label: 'Hook up a monitor (Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
+      { label: 'Connect an alert source (webhook, Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
       { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
@@ -1073,7 +1085,7 @@ function printCompletionSummary(state) {
 
 async function runWorkspaceSetup(state) {
   const teamName = state?.onboarding.steps.createTeam === 'needed'
-    ? await ask('Primary team name')
+    ? await askRequired('Primary team name')
     : 'Rootly team';
   const membersRaw = state?.onboarding.steps.inviteTeamMembers === 'needed'
     ? await ask('Invite team members now? (comma-separated emails, optional)', '')
@@ -1267,14 +1279,8 @@ async function continueRecommendedSetup(state) {
 
 async function createTeamSetup() {
   heading('Create a team');
-  const state = await loadOnboardingState();
-
-  if (state) {
-    printStartupStatus(state);
-  }
-
-  const teamName = await ask('Team name');
-  const description = await ask('Description', 'Created during Rootly setup');
+  const teamName = await askRequired('Team name');
+  const description = await ask('Description (optional)', '');
 
   const confirm = await ask('Create this team now? (y/n)', 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1301,10 +1307,6 @@ async function createTeamSetup() {
 async function addTeamMembersSetup() {
   heading('Add team members');
   const state = await loadOnboardingState();
-
-  if (state) {
-    printStartupStatus(state);
-  }
 
   const team = await chooseTeamRecord(state, 'Which team are you adding members to?');
   if (!team) {
@@ -1390,17 +1392,13 @@ async function createScheduleSetup() {
   heading('Create a schedule');
   const state = await loadOnboardingState();
 
-  if (state) {
-    printStartupStatus(state);
-  }
-
   const team = await chooseTeamRecord(state, 'Which team should own this schedule?');
   if (!team) {
     return;
   }
 
-  const name = await ask('Schedule name', `${team.name} On-Call`);
-  const handoffTime = await ask('Daily handoff time (HH:MM)', '09:00');
+  const name = await askRequired('Schedule name', `${team.name} On-Call`);
+  const handoffTime = await ask('Daily handoff time (HH:MM, workspace timezone)', '09:00');
   const memberIds = await pickRotationMembers(team);
 
   const confirm = await ask(`Create ${name} for ${team.name}? (y/n)`, 'y');
@@ -1431,17 +1429,13 @@ async function createEscalationPolicySetup() {
   heading('Create an escalation policy');
   const state = await loadOnboardingState();
 
-  if (state) {
-    printStartupStatus(state);
-  }
-
   const team = await chooseTeamRecord(state, 'Which team should own this escalation policy?');
   if (!team) {
     return;
   }
 
-  const name = await ask('Escalation policy name', `${team.name} Default Escalation`);
-  const repeatCount = Number.parseInt(await ask('Repeat count', '1'), 10) || 1;
+  const name = await askRequired('Escalation policy name', `${team.name} Default Escalation`);
+  const repeatCount = Number.parseInt(await ask('Repeat count before stopping', '1'), 10) || 1;
 
   const confirm = await ask(`Create ${name} for ${team.name}? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1486,13 +1480,10 @@ async function slackSetup() {
 }
 
 async function alertSourceSetup() {
-  heading('Hook up a monitor');
-  console.log('Choose a monitor or alert source to connect.');
+  heading('Connect an alert source');
+  console.log('Choose the alert source you want to connect.');
   separator();
   const state = await loadOnboardingState();
-  if (state) {
-    printStartupStatus(state);
-  }
 
   const source = await choose('Which alert source are we setting up?', [
     { label: 'Generic webhook' },
@@ -1512,11 +1503,11 @@ async function alertSourceSetup() {
     return;
   }
 
-  const name = await ask('Alert source name', 'Generic webhook');
+  const name = await askRequired('Alert source name', 'Generic webhook');
 
   const confirm = await ask(`Create ${name} now? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
-    printSummary('Monitor setup', ['No changes were made.']);
+    printSummary('Alert source setup', ['No changes were made.']);
     return;
   }
 
@@ -1531,7 +1522,7 @@ async function alertSourceSetup() {
     ]);
   } catch (error) {
     const failure = serializeActionError(error, 'The wizard could not create the alert source.');
-    printSummary('Monitor setup needs attention', [
+    printSummary('Alert source needs attention', [
       failure.summary,
       `Rootly said: ${failure.error}`
     ]);
@@ -1635,7 +1626,7 @@ async function testAlertSetup() {
   const state = await loadOnboardingState();
 
   const team = state ? await chooseTeamRecord(state, 'Which team should receive this test alert?') : null;
-  const summary = await ask('Alert summary', 'Rootly Wizard test alert');
+  const summary = await askRequired('Alert summary', 'Rootly Wizard test alert');
   const description = await ask('Description', 'Test alert sent from Rootly Wizard');
   const addRoutingFields = (await ask('Add service or environment routing? (y/n)', 'n')).toLowerCase().startsWith('y');
 
@@ -1683,7 +1674,7 @@ async function testIncidentSetup() {
   const state = await loadOnboardingState();
 
   const team = state ? await chooseTeamRecord(state, 'Which team should own this test incident?') : null;
-  const title = await ask('Incident title', 'Rootly Wizard test incident');
+  const title = await askRequired('Incident title', 'Rootly Wizard test incident');
   const summary = await ask('Summary', 'Test incident created from Rootly Wizard');
   const addMoreFields = (await ask('Add more incident fields? (y/n)', 'n')).toLowerCase().startsWith('y');
 
@@ -2075,7 +2066,19 @@ async function loadOnboardingStateInteractive() {
       return null;
     }
 
-    return loadOnboardingState();
+    try {
+      return await loadOnboardingState();
+    } catch (retryError) {
+      if (!isWorkspaceAccessFailure(retryError)) {
+        throw retryError;
+      }
+
+      printSummary('Auth needs attention', [
+        'The latest sign-in still cannot read the workspace setup APIs.',
+        'Use API key sign-in for now, or retry browser sign-in after Rootly grants workspace API access.'
+      ]);
+      return null;
+    }
   }
 }
 
