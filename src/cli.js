@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import * as readlineCore from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
 import { addClaudeCodeUserScope, buildHostedMcpPreview, getMcpConfigPath, verifyHostedMcpConfig, writeHostedMcpConfig } from './mcp.js';
@@ -311,7 +312,7 @@ async function choose(question, options) {
   }
 
   rl.pause();
-  readline.emitKeypressEvents(input);
+  readlineCore.emitKeypressEvents(input);
   input.setRawMode(true);
   input.resume();
 
