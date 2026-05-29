@@ -23,6 +23,22 @@ npx @rootly/wizard
 
 Then follow a guided flow to complete the next meaningful setup task.
 
+## Running the wizard
+
+Preferred entrypoints:
+
+```bash
+npx @rootly/wizard
+```
+
+For local development from this repo:
+
+```bash
+node ./src/cli.js
+```
+
+Avoid using `npm start` in demos or user-facing docs, because npm echoes the underlying script command before launching the wizard.
+
 ## Product thesis
 
 Rootly Wizard should be a guided onboarding and expansion tool, not a general replacement for the Rootly UI.

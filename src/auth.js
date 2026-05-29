@@ -13,6 +13,7 @@ const CALLBACK_PATH = '/callback';
 const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'all'];
 const REFRESH_SKEW_MS = 30_000;
+const AUTH_REQUEST_TIMEOUT_MS = 30_000;
 
 function authBaseUrl(apiBaseUrl = DEFAULT_API_BASE_URL) {
   const url = new URL(apiBaseUrl);
@@ -116,6 +117,7 @@ async function registerOAuthClient(baseUrl = DEFAULT_API_BASE_URL) {
       'Content-Type': 'application/json',
       Accept: 'application/json'
     },
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
       client_name: 'Rootly Wizard',
       redirect_uris: [REDIRECT_URI],
@@ -172,6 +174,7 @@ async function exchangeOAuthCode({ code, codeVerifier, clientId, baseUrl = DEFAU
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json'
     },
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
     body
   });
 
@@ -196,6 +199,7 @@ async function refreshOAuthAccessToken(session) {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json'
     },
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
     body
   });
 
@@ -317,7 +321,8 @@ export async function validateToken(token, baseUrl = DEFAULT_API_BASE_URL) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json'
-    }
+    },
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS)
   });
 
   if (!response.ok) {
@@ -388,7 +393,7 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<h1>Login successful</h1><p>You can close this window and return to Rootly Wizard.</p>');
+      res.end('<h1>Authorization received</h1><p>Rootly Wizard is finishing sign-in in the terminal. You can close this window once the terminal says auth is complete.</p>');
       finish(() => resolve({ code }));
     });
 
@@ -436,6 +441,8 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
     timeoutId.unref();
   });
 
+  console.log('Authorization received. Finalizing browser sign-in...');
+
   const tokenPayload = await exchangeOAuthCode({
     code: callbackResult.code,
     codeVerifier,
@@ -444,11 +451,13 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
   });
 
   const session = sessionToStoredShape(baseUrl, registration, tokenPayload);
+  console.log('Storing browser session securely...');
   const stored = await storeOAuthSession(session);
   if (!stored) {
     throw new Error('OAuth login succeeded, but the browser session could not be stored securely');
   }
 
+  console.log('Validating browser session access...');
   const userPayload = await validateToken(session.accessToken, baseUrl);
   if (!userPayload) {
     throw new Error('OAuth login succeeded, but token validation failed');

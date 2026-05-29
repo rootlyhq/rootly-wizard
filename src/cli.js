@@ -522,8 +522,7 @@ function printStartupStatus(state) {
     { label: 'Teams w/ members', value: `${teams.teamsWithMembers}/${teams.total}` },
     { label: 'Teams w/ on-call', value: `${teams.teamsWithSchedules}/${teams.total}` },
     { label: 'Teams w/ escalation', value: `${teams.teamsWithEscalationPolicies}/${teams.total}` },
-    { label: 'Alerting', value: `${readinessMark(alerting)} ${alertingLabel(alerting)}` },
-    { label: 'Slack coverage', value: `${teams.teamsWithSlack}/${teams.total}` }
+    { label: 'Alerting', value: alertingLabel(alerting) }
   ]);
   printCallout('Next best action', [humanizeAction(state.onboarding.nextBestAction)]);
 }
@@ -623,7 +622,7 @@ async function chooseMenuAction(state) {
   const recommended = state ? recommendedActionLabel(state) : 'Run guided setup';
 
   const category = await choose('What would you like to do?', [
-    { label: `Continue recommended setup (${recommended})`, action: 'Continue recommended setup' },
+    { label: `Recommended setup (${recommended})`, action: 'Continue recommended setup' },
     { label: 'Status', action: 'Status' },
     { label: 'Setup (teams, members, schedules, escalation)', action: 'Setup' },
     { label: 'Integrations (Slack, alert sources, vendor connections)', action: 'Integrations' },
@@ -952,6 +951,10 @@ async function authFlow() {
     verifiedAccess = ['User profile'];
   }
 
+  const verifiedAccessLine = method.action === 'oauth' && verifiedAccess.length === 1 && verifiedAccess[0] === 'User profile'
+    ? 'Verified access: user profile only'
+    : `Verified access: ${verifiedAccess.join(', ')}`;
+
   const identityName =
     userPayload?.data?.attributes?.full_name ||
     userPayload?.data?.attributes?.name ||
@@ -962,7 +965,7 @@ async function authFlow() {
     authSuccessLine,
     `API identity: ${identityName}`,
     workspaceName ? `Workspace: ${workspaceName}` : null,
-    `Verified access: ${verifiedAccess.join(', ')}`,
+    verifiedAccessLine,
     stored
       ? (method.action === 'oauth'
         ? 'Browser session stored securely in the system keychain'
@@ -1070,7 +1073,7 @@ function printCompletionSummary(state) {
 
 async function runWorkspaceSetup(state) {
   const teamName = state?.onboarding.steps.createTeam === 'needed'
-    ? await ask('Primary team name', 'Payments')
+    ? await ask('Primary team name')
     : 'Rootly team';
   const membersRaw = state?.onboarding.steps.inviteTeamMembers === 'needed'
     ? await ask('Invite team members now? (comma-separated emails, optional)', '')
@@ -1082,14 +1085,14 @@ async function runWorkspaceSetup(state) {
     .filter(Boolean);
 
   printSummary('Planned setup', buildHappyPathSummary([
-    `Group / team: ${teamName}`,
-    memberEmails.length ? `Requested invite emails: ${memberEmails.join(', ')}` : 'Requested invite emails: none',
-    'Schedule: create primary on-call rotation',
-    'Escalation policy: create default escalation policy',
-    'Alert source: create generic webhook source'
+    `Team: ${teamName}`,
+    memberEmails.length ? `Attach existing users if found: ${memberEmails.join(', ')}` : 'Attach existing users if found: none',
+    'Create a primary on-call schedule',
+    'Create a default escalation policy',
+    'Create a generic webhook alert source'
   ]));
 
-  const confirm = await ask('Proceed with these Rootly changes? (y/n)', 'y');
+  const confirm = await ask('Create these Rootly setup items now? (y/n)', 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
     printSummary('Workspace setup', ['No changes were made.']);
     return;
@@ -1212,7 +1215,7 @@ async function runOnboarding(state) {
 
 async function accountSetup() {
   heading('Run guided setup');
-  console.log('Workspace setup, team setup, alerting setup, then incident setup.');
+  console.log('Walk through the core Rootly setup path step by step.');
   separator();
 
   const state = await loadOnboardingState();
@@ -1255,7 +1258,7 @@ async function continueRecommendedSetup(state) {
     printSummary('Setup looks complete', [
       'Your core Rootly setup (teams, on-call, escalation, alerting) is already in place — nothing for the wizard to create right now.',
       `Readiness — workspace: ${state.onboarding.readiness.workspaceSetup}, team: ${state.onboarding.readiness.groupSetup}, alerting: ${state.onboarding.readiness.alertingSetup}, incident: ${state.onboarding.readiness.incidentSetup}`,
-      'Next: connect Slack or create a test incident from the Integrations menu, or open Inspect for details.'
+      'Next: connect Slack, run Verify, or open Inspect for more detail.'
     ]);
   } else {
     printSummary('Review remaining setup', ['Authenticate first to review setup.']);
@@ -1270,7 +1273,7 @@ async function createTeamSetup() {
     printStartupStatus(state);
   }
 
-  const teamName = await ask('Team name', 'Payments');
+  const teamName = await ask('Team name');
   const description = await ask('Description', 'Created during Rootly setup');
 
   const confirm = await ask('Create this team now? (y/n)', 'y');
@@ -1308,7 +1311,13 @@ async function addTeamMembersSetup() {
     return;
   }
 
-  const membersRaw = await ask('Emails to add (comma-separated)', '');
+  printSummary('How this works', [
+    'The wizard tries to match these emails to existing Rootly users.',
+    'If a match is found, that user is attached to the team.',
+    'If no match is found, the email is left as a notification address for follow-up.'
+  ]);
+
+  const membersRaw = await ask('Emails to attach (comma-separated)', '');
   const emails = membersRaw.split(',').map((value) => value.trim()).filter(Boolean);
 
   if (!emails.length) {
@@ -1324,11 +1333,15 @@ async function addTeamMembersSetup() {
 
   try {
     const result = await addTeamMembersAction({ teamId: team.id, emails });
+    const unmatchedEmails = emails.filter((email) => {
+      const lower = email.toLowerCase();
+      return !result.data.matchedUsers.some((user) => (user.email || '').toLowerCase() === lower);
+    });
 
     printSummary('Team members updated', [
       `Team: ${team.name}`,
       `Matched existing users: ${result.data.matchedUsers.map((user) => user.name || user.email).join(', ') || 'none'}`,
-      `Requested emails: ${emails.join(', ')}`
+      unmatchedEmails.length ? `Not matched in Rootly yet: ${unmatchedEmails.join(', ')}` : 'All requested emails matched existing Rootly users'
     ]);
   } catch (error) {
     const failure = serializeActionError(error, 'The wizard could not update team membership.');
@@ -1620,16 +1633,19 @@ async function pickResourceIds(label, api, method, { multi = true } = {}) {
 async function testAlertSetup() {
   heading('Send a test alert');
   const state = await loadOnboardingState();
-  if (state) {
-    printStartupStatus(state);
-  }
 
   const team = state ? await chooseTeamRecord(state, 'Which team should receive this test alert?') : null;
   const summary = await ask('Alert summary', 'Rootly Wizard test alert');
   const description = await ask('Description', 'Test alert sent from Rootly Wizard');
-  const api = await loadApiClientOrNull();
-  const serviceIds = await pickResourceIds('Services', api, 'listServices');
-  const environmentIds = await pickResourceIds('Environments', api, 'listEnvironments');
+  const addRoutingFields = (await ask('Add service or environment routing? (y/n)', 'n')).toLowerCase().startsWith('y');
+
+  let serviceIds = [];
+  let environmentIds = [];
+  if (addRoutingFields) {
+    const api = await loadApiClientOrNull();
+    serviceIds = await pickResourceIds('Services', api, 'listServices');
+    environmentIds = await pickResourceIds('Environments', api, 'listEnvironments');
+  }
 
   const confirm = await ask(`Send test alert "${summary}" now? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
@@ -1654,7 +1670,10 @@ async function testAlertSetup() {
     const failure = serializeActionError(error, 'The wizard could not create the test alert.');
     printSummary('Test alert needs attention', [
       failure.summary,
-      `Rootly said: ${failure.error}`
+      `Rootly said: ${failure.error}`,
+      addRoutingFields
+        ? 'If this workspace needs fewer routing fields, rerun without adding service or environment routing.'
+        : 'If this workspace needs more routing detail, rerun and add service or environment routing.'
     ]);
   }
 }
@@ -1662,9 +1681,6 @@ async function testAlertSetup() {
 async function testIncidentSetup() {
   heading('Create a test incident');
   const state = await loadOnboardingState();
-  if (state) {
-    printStartupStatus(state);
-  }
 
   const team = state ? await chooseTeamRecord(state, 'Which team should own this test incident?') : null;
   const title = await ask('Incident title', 'Rootly Wizard test incident');
@@ -1683,7 +1699,7 @@ async function testIncidentSetup() {
     incidentTypeIds = await pickResourceIds('Incident types', api, 'listIncidentTypes');
     serviceIds = await pickResourceIds('Services', api, 'listServices');
     environmentIds = await pickResourceIds('Environments', api, 'listEnvironments');
-    isPrivate = (await ask('Private incident? (y/n)', 'n')).toLowerCase().startsWith('y');
+    isPrivate = (await ask('Private incident? (restricted visibility) (y/n)', 'n')).toLowerCase().startsWith('y');
   }
 
   const confirm = await ask(`Create test incident "${title}" now? (y/n)`, 'y');
@@ -1999,6 +2015,8 @@ function printHelp() {
   console.log('  rootly-wizard action help            Agent quickstart (JSON)');
   console.log('  rootly-wizard help            Show this help');
   separator();
+  console.log('Preferred run path: `rootly-wizard` or `npx @rootly/wizard` once published.');
+  console.log('Local development: `node ./src/cli.js`.');
   console.log('Auth: set ROOTLY_TOKEN, or sign in on first run (browser or API key).');
   console.log('Agents: see AGENTS.md. Pass {"dryRun": true} to any mutating action to preview.');
 }
@@ -2022,7 +2040,11 @@ function formatTopLevelError(error) {
 function isWorkspaceAccessFailure(error) {
   const message = error?.message || String(error);
   return (
-    message.includes('/v1/teams') &&
+    (
+      message.includes('/v1/teams') ||
+      message.includes('/v1/schedules') ||
+      message.includes('/v1/escalation_policies')
+    ) &&
     (/\b401\b/.test(message) || /\b403\b/.test(message) || /Not found or unauthorized/i.test(message))
   );
 }
@@ -2036,10 +2058,15 @@ async function loadOnboardingStateInteractive() {
     }
 
     const authSummary = await getAuthSummary();
+    const isBrowserSession = authSummary?.mode === 'oauth';
     printSummary('Auth needs attention', [
       authSummary?.label || 'Stored Rootly sign-in was found',
-      'The stored sign-in could not read this Rootly workspace.',
-      'Please sign in again to continue.'
+      isBrowserSession
+        ? 'Browser sign-in completed, but this OAuth session cannot read the workspace setup APIs yet.'
+        : 'The stored sign-in could not read this Rootly workspace.',
+      isBrowserSession
+        ? 'Use API key sign-in for now, or retry browser sign-in after Rootly grants workspace API access.'
+        : 'Please sign in again to continue.'
     ]);
 
     await deleteToken();
