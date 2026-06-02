@@ -652,7 +652,6 @@ async function chooseMenuAction(state) {
   if (category.action === 'Setup') {
     printMenuTransition();
     const setupAction = await choose('Setup', [
-      { label: 'Run guided setup', action: 'Run guided setup' },
       { label: 'Create a team', action: 'Create a team' },
       { label: 'Add team members', action: 'Add team members' },
       { label: 'Create a schedule', action: 'Create a schedule' },
@@ -666,7 +665,7 @@ async function chooseMenuAction(state) {
     printMenuTransition();
     const integrationsAction = await choose('Integrations', [
       { label: 'Connect Slack for incidents', action: 'Connect Slack for incidents' },
-      { label: 'Connect an alert source (webhook, Datadog, Grafana, PagerDuty)', action: 'Hook up a monitor' },
+      { label: 'Connect an alert source (webhook, Datadog, Grafana, PagerDuty, more)', action: 'Hook up a monitor' },
       { label: 'Back to main menu', action: 'Back' }
     ]);
     return integrationsAction.action;
@@ -2194,8 +2193,6 @@ async function main() {
       }
     } else if (action === 'Continue recommended setup') {
       await continueRecommendedSetup(state);
-    } else if (action === 'Run guided setup') {
-      await accountSetup();
     } else if (action === 'Create a team') {
       await createTeamSetup();
     } else if (action === 'Add team members') {
