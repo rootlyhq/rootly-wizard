@@ -641,7 +641,7 @@ async function chooseMenuAction(state) {
     { label: 'Verify (test alerting and incident flow)', action: 'Verify' },
     { label: 'Set up MCP / IDE', action: 'Set up MCP / IDE' },
     { label: 'Inspect (readiness, teams, schedules)', action: 'Inspect' },
-    { label: 'Disconnect', action: 'Disconnect' },
+    { label: 'Disconnect (delete stored sign-in)', action: 'Disconnect' },
     { label: 'Exit wizard', action: 'Exit wizard' }
   ]);
 
@@ -1374,17 +1374,39 @@ async function pickRotationMembers(team) {
   people.forEach((member, index) => {
     console.log(`  ${tone(`${index + 1}.`, FG_PURPLE)} ${member.name || member.email || member.id}`);
   });
+  console.log(`  ${tone(`${people.length + 1}.`, FG_PURPLE)} Use all team members`);
+  console.log(`  ${tone(`${people.length + 2}.`, FG_PURPLE)} Back`);
 
-  const raw = await ask('Select members (comma-separated, or Enter for all)', '');
-  if (!raw.trim()) {
-    return people.map((member) => member.id);
+  while (true) {
+    const raw = await ask('Select one or more members (comma-separated)', '');
+    const indexes = [...new Set(raw.split(',').map((value) => Number.parseInt(value.trim(), 10) - 1))]
+      .filter((index) => Number.isInteger(index));
+
+    if (!indexes.length) {
+      console.log('Select at least one member, or choose Use all team members.');
+      separator();
+      continue;
+    }
+
+    if (indexes.includes(people.length + 1)) {
+      return null;
+    }
+
+    if (indexes.includes(people.length)) {
+      return people.map((member) => member.id);
+    }
+
+    const chosen = indexes
+      .filter((index) => index >= 0 && index < people.length)
+      .map((index) => people[index].id);
+
+    if (chosen.length) {
+      return chosen;
+    }
+
+    console.log(`Please choose one or more numbers between 1 and ${people.length + 2}.`);
+    separator();
   }
-
-  const chosen = [...new Set(raw.split(',').map((value) => Number.parseInt(value.trim(), 10) - 1))]
-    .filter((index) => index >= 0 && index < people.length)
-    .map((index) => people[index].id);
-
-  return chosen.length ? chosen : people.map((member) => member.id);
 }
 
 async function createScheduleSetup() {
@@ -1399,6 +1421,10 @@ async function createScheduleSetup() {
   const name = await askRequired('Schedule name', `${team.name} On-Call`);
   const handoffTime = await ask('Daily handoff time (HH:MM, workspace timezone)', '09:00');
   const memberIds = await pickRotationMembers(team);
+  if (memberIds === null) {
+    printSummary('Schedule setup', ['No changes were made.']);
+    return;
+  }
 
   const confirm = await ask(`Create ${name} for ${team.name}? (y/n)`, 'y');
   if (!confirm.toLowerCase().startsWith('y')) {
