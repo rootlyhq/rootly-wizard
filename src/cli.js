@@ -1447,7 +1447,13 @@ async function createScheduleSetup() {
     return;
   }
 
-  const name = await askRequired('Schedule name', `${team.name} On-Call`);
+  const defaultName = `${team.name} On-Call`;
+  let name = defaultName;
+  printSummary('Recommended schedule', [`We'll create ${defaultName}.`]);
+  const rename = await ask('Rename it? (y/n)', 'n');
+  if (rename.toLowerCase().startsWith('y')) {
+    name = await askRequired('Schedule name', defaultName);
+  }
   const handoffTime = await ask('Daily handoff time (HH:MM, workspace timezone)', '09:00');
   const memberIds = await pickRotationMembers(team);
   if (memberIds === null) {
@@ -1488,7 +1494,13 @@ async function createEscalationPolicySetup() {
     return;
   }
 
-  const name = await askRequired('Escalation policy name', `${team.name} Default Escalation`);
+  const defaultName = `${team.name} Default Escalation`;
+  let name = defaultName;
+  printSummary('Recommended escalation policy', [`We'll create ${defaultName}.`]);
+  const rename = await ask('Rename it? (y/n)', 'n');
+  if (rename.toLowerCase().startsWith('y')) {
+    name = await askRequired('Escalation policy name', defaultName);
+  }
   const repeatCount = Number.parseInt(await ask('Repeat count before stopping', '1'), 10) || 1;
 
   const confirm = await ask(`Create ${name} for ${team.name}? (y/n)`, 'y');
