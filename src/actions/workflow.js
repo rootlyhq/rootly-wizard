@@ -3,7 +3,7 @@ import { loadOnboardingState } from '../runtime.js';
 export function humanizeAction(action) {
   switch (action) {
     case 'run-guided-setup':
-      return 'Review remaining setup';
+      return 'Core setup complete';
     case 'create-team':
       return 'Create the first team';
     case 'invite-team-members':

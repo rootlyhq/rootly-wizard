@@ -48,6 +48,7 @@ const FG_BLUE = '\u001b[38;5;117m';
 const FG_PURPLE = '\u001b[38;5;183m';
 const FG_WHITE = '\u001b[38;5;255m';
 const FG_MUSTARD = '\u001b[38;5;220m';
+const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;]*m/g;
 
 async function printLogo() {
   if (!output.isTTY) {
@@ -105,6 +106,16 @@ function statusLine(label, value) {
 
 function panelTitle(text) {
   return output.isTTY ? `${FG_BLUE}${text}${RESET}` : text;
+}
+
+function visibleTextWidth(value) {
+  return String(value || '').replace(ANSI_ESCAPE_PATTERN, '').length;
+}
+
+function terminalRowsForLine(line) {
+  const columns = output.columns || 80;
+  const width = Math.max(visibleTextWidth(line), 1);
+  return Math.max(1, Math.ceil(width / Math.max(columns, 1)));
 }
 
 function printMenuTransition() {
@@ -330,11 +341,11 @@ async function choose(question, options) {
 
   let selectedIndex = 0;
   let typedDigits = '';
-  let renderedLines = 0;
+  let renderedRows = 0;
 
   const render = () => {
-    if (renderedLines > 0) {
-      output.write(`\u001b[${renderedLines}A`);
+    if (renderedRows > 0) {
+      output.write(`\u001b[${renderedRows}A`);
       output.write('\u001b[J');
     }
 
@@ -351,7 +362,7 @@ async function choose(question, options) {
     ];
 
     output.write(`${lines.join('\n')}\n`);
-    renderedLines = lines.length;
+    renderedRows = lines.reduce((total, line) => total + terminalRowsForLine(line), 0);
   };
 
   render();
@@ -378,14 +389,22 @@ async function choose(question, options) {
         }
 
         if (key.name === 'up') {
-          selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
+          const nextIndex = selectedIndex > 0 ? selectedIndex - 1 : 0;
+          if (nextIndex === selectedIndex) {
+            return;
+          }
+          selectedIndex = nextIndex;
           typedDigits = '';
           render();
           return;
         }
 
         if (key.name === 'down') {
-          selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
+          const nextIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : options.length - 1;
+          if (nextIndex === selectedIndex) {
+            return;
+          }
+          selectedIndex = nextIndex;
           typedDigits = '';
           render();
           return;
@@ -542,7 +561,7 @@ function printStartupStatus(state) {
 function recommendedActionLabel(state) {
   switch (state?.onboarding.nextBestAction) {
     case 'run-guided-setup':
-      return 'Review remaining setup';
+      return 'Core setup complete';
     case 'create-team':
       return 'Create a team';
     case 'invite-team-members':
@@ -554,7 +573,7 @@ function recommendedActionLabel(state) {
     case 'hook-up-monitor':
       return 'Connect an alert source';
     default:
-      return 'Review remaining setup';
+      return 'Continue setup';
   }
 }
 
@@ -1272,7 +1291,7 @@ async function continueRecommendedSetup(state) {
       'Next: connect Slack, run Verify, or open Inspect for more detail.'
     ]);
   } else {
-    printSummary('Review remaining setup', ['Authenticate first to review setup.']);
+    printSummary('Core setup complete', ['Authenticate first to review setup.']);
   }
 }
 
@@ -1338,6 +1357,16 @@ async function addTeamMembersSetup() {
       const lower = email.toLowerCase();
       return !result.data.matchedUsers.some((user) => (user.email || '').toLowerCase() === lower);
     });
+
+    if (result.data.userLookupUnavailable) {
+      printSummary('Team contacts updated', [
+        `Team: ${team.name}`,
+        `Attached as team emails: ${emails.join(', ')}`,
+        'This browser sign-in can update the team, but it cannot search Rootly users to add them as members.',
+        'Use API key sign-in if you want the wizard to auto-match emails to existing Rootly users.'
+      ]);
+      return;
+    }
 
     printSummary('Team members updated', [
       `Team: ${team.name}`,

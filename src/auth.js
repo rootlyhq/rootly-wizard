@@ -332,6 +332,23 @@ export async function validateToken(token, baseUrl = DEFAULT_API_BASE_URL) {
   return response.json();
 }
 
+async function probeTokenValidation(token, baseUrl = DEFAULT_API_BASE_URL) {
+  const response = await fetch(new URL('/v1/users/me', baseUrl), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    },
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS)
+  });
+
+  const body = await response.text().catch(() => '');
+  return {
+    ok: response.ok,
+    status: response.status,
+    body
+  };
+}
+
 export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
   const registration = await resolveOAuthRegistration(baseUrl);
   const state = crypto.randomBytes(32).toString('base64url');
@@ -342,7 +359,9 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('client_id', registration.clientId);
   authorizeUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-  authorizeUrl.searchParams.set('scope', registration.scopes.join(' '));
+  if (Array.isArray(registration.scopes) && registration.scopes.length > 0) {
+    authorizeUrl.searchParams.set('scope', registration.scopes.join(' '));
+  }
   authorizeUrl.searchParams.set('state', state);
   authorizeUrl.searchParams.set('code_challenge', codeChallenge);
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
@@ -450,6 +469,8 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
     baseUrl
   });
 
+  console.log(`OAuth token response: type=${tokenPayload?.token_type || 'unknown'} expires_in=${tokenPayload?.expires_in || 'unknown'} scope=${tokenPayload?.scope || '(none returned)'}`);
+
   const session = sessionToStoredShape(baseUrl, registration, tokenPayload);
   console.log('Storing browser session securely...');
   const stored = await storeOAuthSession(session);
@@ -460,6 +481,8 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
   console.log('Validating browser session access...');
   const userPayload = await validateToken(session.accessToken, baseUrl);
   if (!userPayload) {
+    const probe = await probeTokenValidation(session.accessToken, baseUrl);
+    console.log(`OAuth validation probe: ok=${probe.ok} status=${probe.status} body=${probe.body || '(empty)'}`);
     throw new Error('OAuth login succeeded, but token validation failed');
   }
 

@@ -4,6 +4,11 @@ function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
 }
 
+function isUsersLookupUnavailable(error) {
+  const message = error?.message || '';
+  return message.includes('/v1/users') && message.includes('404');
+}
+
 export async function createTeamAction({
   name,
   description = 'Created during Rootly setup',
@@ -11,31 +16,30 @@ export async function createTeamAction({
   enableAlertsAndBroadcast = false
 } = {}) {
   const api = await loadApiClient();
-  const currentUser = await api.getCurrentUser();
-  const currentUserId = extractUserId(currentUser);
 
   const cleanEmails = (memberEmails || []).map((value) => String(value).trim()).filter(Boolean);
   const matchedUsers = [];
+  let userLookupUnavailable = false;
   for (const email of cleanEmails) {
-    const match = await api.findUserByEmail(email);
-    if (match) {
-      matchedUsers.push(match);
+    try {
+      const match = await api.findUserByEmail(email);
+      if (match) {
+        matchedUsers.push(match);
+      }
+    } catch (error) {
+      if (isUsersLookupUnavailable(error)) {
+        userLookupUnavailable = true;
+        break;
+      }
+
+      throw error;
     }
   }
-  const memberIds = matchedUsers
-    .map((user) => Number.parseInt(user.id, 10))
-    .filter(Number.isFinite);
-
-  // Only seed a real signed-in user as member/admin — never the API-key
-  // service account (it would surface as a bot+apikey member of the team).
-  const selfIds = currentUserId && !isServiceAccount(currentUser) ? [currentUserId] : [];
+  const memberIds = matchedUsers.map((user) => String(user.id)).filter(Boolean);
 
   const attributes = {
     name,
-    description,
-    user_ids: [...selfIds, ...memberIds].filter(Boolean),
-    admin_ids: selfIds,
-    auto_add_members_when_attached: true
+    description
   };
 
   if (cleanEmails.length) {
@@ -48,15 +52,28 @@ export async function createTeamAction({
   }
 
   const payload = await api.createTeam(attributes);
+  const teamId = extractTeamId(payload);
+
+  if (teamId && memberIds.length && !userLookupUnavailable) {
+    const existingUserIds = Array.isArray(payload?.data?.relationships?.users?.data)
+      ? payload.data.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
+      : [];
+
+    await api.updateTeam(teamId, {
+      notify_emails: cleanEmails,
+      user_ids: [...new Set([...existingUserIds, ...memberIds])]
+    });
+  }
 
   return {
     ok: true,
     summary: `Created team ${name}.`,
     data: {
-      id: extractTeamId(payload),
+      id: teamId,
       name,
       description,
       memberIds,
+      userLookupUnavailable,
       matchedUsers: matchedUsers.map((user) => ({
         id: user.id,
         email: user.attributes?.email || null,
@@ -71,33 +88,49 @@ export async function addTeamMembersAction({ teamId, emails }) {
   const teamsPayload = await api.listTeams();
   const existingTeam = teamsPayload?.data?.find((team) => team?.id === teamId) || null;
   const existingUserIds = Array.isArray(existingTeam?.relationships?.users?.data)
-    ? existingTeam.relationships.users.data.map((user) => Number.parseInt(user.id, 10)).filter(Number.isFinite)
+    ? existingTeam.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
     : [];
 
   const cleanEmails = (emails || []).map((value) => value.trim()).filter(Boolean);
   const resolvedMembers = [];
+  let userLookupUnavailable = false;
   for (const email of cleanEmails) {
-    const match = await api.findUserByEmail(email);
-    if (match) {
-      resolvedMembers.push(match);
+    try {
+      const match = await api.findUserByEmail(email);
+      if (match) {
+        resolvedMembers.push(match);
+      }
+    } catch (error) {
+      if (isUsersLookupUnavailable(error)) {
+        userLookupUnavailable = true;
+        break;
+      }
+
+      throw error;
     }
   }
 
-  const resolvedMemberIds = resolvedMembers
-    .map((user) => Number.parseInt(user.id, 10))
-    .filter(Number.isFinite);
+  const resolvedMemberIds = resolvedMembers.map((user) => String(user.id)).filter(Boolean);
 
-  await api.updateTeam(teamId, {
-    notify_emails: cleanEmails,
-    user_ids: [...new Set([...existingUserIds, ...resolvedMemberIds])]
-  });
+  const attributes = {
+    notify_emails: cleanEmails
+  };
+
+  if (!userLookupUnavailable) {
+    attributes.user_ids = [...new Set([...existingUserIds, ...resolvedMemberIds])];
+  }
+
+  await api.updateTeam(teamId, attributes);
 
   return {
     ok: true,
-    summary: `Updated team ${teamId} membership.`,
+    summary: userLookupUnavailable
+      ? `Attached emails to team ${teamId}, but could not resolve Rootly users with this auth session.`
+      : `Updated team ${teamId} membership.`,
     data: {
       teamId,
       requestedEmails: cleanEmails,
+      userLookupUnavailable,
       matchedUsers: resolvedMembers.map((user) => ({
         id: user.id,
         email: user.attributes?.email || null,
