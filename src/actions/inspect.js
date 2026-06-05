@@ -197,6 +197,57 @@ export async function getTeamMembersAction({ teamId } = {}) {
   };
 }
 
+function usersLookupUnavailable(error) {
+  const message = error?.message || '';
+  return message.includes('/v1/users') && message.includes('404');
+}
+
+export async function getAddableTeamMembersAction({ teamId } = {}) {
+  const token = await getActiveToken();
+  if (!token) {
+    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
+  }
+
+  const api = await loadApiClient();
+  const teamPayload = await api.getTeam(teamId);
+  const existing = new Set((teamPayload?.data?.attributes?.user_ids || []).map((id) => String(id)));
+
+  // Some sign-ins (notably limited OAuth sessions) cannot read /v1/users.
+  // Surface that as a flag so the caller can fall back to inviting by email.
+  let allUsers = [];
+  let userLookupUnavailable = false;
+  try {
+    allUsers = await api.listAllUsers();
+  } catch (error) {
+    if (usersLookupUnavailable(error)) {
+      userLookupUnavailable = true;
+    } else {
+      throw error;
+    }
+  }
+
+  const addable = allUsers
+    .filter((record) => !isServiceAccount(record))
+    .map((record) => ({
+      id: String(record.id),
+      name: record?.attributes?.full_name || record?.attributes?.name || null,
+      email: record?.attributes?.email || null
+    }))
+    .filter((user) => !existing.has(user.id));
+
+  return {
+    ok: true,
+    summary: `Loaded addable members for team ${teamId}.`,
+    data: {
+      teamId,
+      teamName: teamPayload?.data?.attributes?.name || teamId,
+      total: addable.length,
+      addable,
+      userLookupUnavailable
+    }
+  };
+}
+
 const byName = (record) => ({
   id: record.id,
   name: record?.attributes?.name || record?.attributes?.slug || record.id

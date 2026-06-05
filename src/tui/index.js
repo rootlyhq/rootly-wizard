@@ -20,6 +20,8 @@ import {
   authenticateWithBrowserForTui,
   createTeamForTui,
   addTeamMembersForTui,
+  addTeamMembersByIdsForTui,
+  loadAddableUsersForTui,
   createScheduleForTui,
   createEscalationPolicyForTui,
   createAlertSourceForTui,
@@ -64,11 +66,12 @@ function InkWizardApp({ onExit }) {
   const [formState, setFormState] = useState({});
   const [mcpPreview, setMcpPreview] = useState(null);
   const [teamMembersData, setTeamMembersData] = useState(null);
+  const [addableUsers, setAddableUsers] = useState(null);
   const [authRecovery, setAuthRecovery] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members'].includes(screen)) return undefined;
+    if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members', 'add-members-picker'].includes(screen)) return undefined;
 
     void (async () => {
       setLoading(true);
@@ -113,6 +116,10 @@ function InkWizardApp({ onExit }) {
       if (screen === 'schedule-members' && selectedTeam?.id) {
         const nextMembers = await loadTeamMembersForTui(selectedTeam.id);
         if (!cancelled) setTeamMembersData(nextMembers);
+      }
+      if (screen === 'add-members-picker' && selectedTeam?.id) {
+        const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
+        if (!cancelled) setAddableUsers(nextAddable);
       }
       if (!cancelled) {
         setLoading(false);
@@ -292,7 +299,6 @@ function InkWizardApp({ onExit }) {
         { label: 'Inspect: status, teams, schedules', value: 'inspect' },
         { label: 'Set up MCP / IDE', value: 'mcp' },
         { label: 'Switch sign-in', value: 'auth' },
-        { label: 'Disconnect', value: 'disconnect' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: (option) => {
@@ -322,10 +328,6 @@ function InkWizardApp({ onExit }) {
         }
         if (option.value === 'auth') {
           setScreen('auth-method');
-          return;
-        }
-        if (option.value === 'disconnect') {
-          setScreen('disconnect-confirm');
           return;
         }
         setScreen('menu');
@@ -359,7 +361,7 @@ function InkWizardApp({ onExit }) {
       lines: ['Choose the setup action you want to run.'],
       options: [
         { label: 'Create a team', value: 'create-team' },
-        { label: 'Add team members', value: 'add-team-members' },
+        { label: 'Add team members', value: 'add-members-picker' },
         { label: 'Create a schedule', value: 'create-schedule' },
         { label: 'Create an escalation policy', value: 'create-escalation' },
         { label: 'Back', value: 'back' }
@@ -658,9 +660,72 @@ function InkWizardApp({ onExit }) {
     });
   }
 
+  if (screen === 'add-members-picker') {
+    const options = (addableUsers?.addable || []).map((user) => ({
+      label: user.name || user.email || user.id,
+      value: user.id
+    }));
+
+    if (!options.length) {
+      const lookupUnavailable = addableUsers?.userLookupUnavailable;
+      return h(OptionScreen, {
+        title: 'Add team members',
+        lines: lookupUnavailable
+          ? [
+              'This sign-in can’t list Rootly users (the user directory needs an API key).',
+              'Invite someone by email instead.'
+            ]
+          : [
+              selectedTeam
+                ? `Everyone in this workspace is already on ${selectedTeam.name}, or there are no other users to add.`
+                : 'No users available to add.',
+              'You can still invite someone by email.'
+            ],
+        options: [
+          { label: 'Invite by email instead', value: 'email' },
+          { label: 'Back', value: 'back' }
+        ],
+        onSelect: (option) => {
+          if (option.value === 'email') setScreen('add-team-members');
+          else setScreen('general-menu');
+        },
+        onBack: () => setScreen('general-menu')
+      });
+    }
+
+    return h(MultiSelectScreen, {
+      title: selectedTeam ? `Add members to ${selectedTeam.name}` : 'Add team members',
+      options,
+      onSubmit: async (selectedOptions) => {
+        if (!selectedOptions.length) {
+          setScreen('menu');
+          return;
+        }
+        setLoading(true);
+        const result = await addTeamMembersByIdsForTui({
+          teamId: selectedTeam?.id,
+          userIds: selectedOptions.map((option) => option.value)
+        });
+        setLoading(false);
+        setResultScreen({
+          title: result.ok ? 'Team members added' : 'Team members need attention',
+          lines: result.ok
+            ? [
+                `Team: ${selectedTeam?.name || 'Unknown'}`,
+                `Added as members: ${selectedOptions.map((option) => option.label).join(', ')}`
+              ]
+            : [result.summary],
+          next: 'menu'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('general-menu')
+    });
+  }
+
   if (screen === 'add-team-members') {
     return h(TextEntryScreen, {
-      title: 'Add team members',
+      title: 'Add team members (by email)',
       prompt: selectedTeam ? `Comma-separated emails for ${selectedTeam.name}` : 'Comma-separated emails',
       placeholder: 'alice@example.com, bob@example.com',
       onSubmit: async (value) => {
@@ -668,10 +733,22 @@ function InkWizardApp({ onExit }) {
         const emails = value.split(',').map((entry) => entry.trim()).filter(Boolean);
         const result = await addTeamMembersForTui({ teamId: selectedTeam?.id, emails });
         setLoading(false);
+        const memberNames = (result.data?.matchedUsers || [])
+          .map((user) => user.name || user.email)
+          .filter(Boolean)
+          .join(', ');
         setResultScreen({
           title: result.ok ? 'Team members updated' : 'Team members need attention',
           lines: result.ok
-            ? [`Team: ${selectedTeam?.name || 'Unknown'}`, result.data?.userLookupUnavailable ? 'Emails attached as team contacts.' : 'Membership update completed.']
+            ? [
+                `Team: ${selectedTeam?.name || 'Unknown'}`,
+                result.data?.userLookupUnavailable
+                  ? 'Could not resolve Rootly users; emails attached as team contacts.'
+                  : `Added as members: ${memberNames || 'no new members'}`,
+                ...(result.data?.unresolvedEmails?.length
+                  ? [`Not in Rootly yet (added as contacts): ${result.data.unresolvedEmails.join(', ')}`]
+                  : [])
+              ]
             : [result.summary],
           next: 'menu'
         });
@@ -924,7 +1001,7 @@ function InkWizardApp({ onExit }) {
           return;
         }
         if (nextAction === 'invite-team-members') {
-          setFormState({ pendingAction: 'add-team-members' });
+          setFormState({ pendingAction: 'add-members-picker' });
           setScreen('team-picker');
           return;
         }

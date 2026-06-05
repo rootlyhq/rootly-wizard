@@ -69,6 +69,7 @@ export function MainMenuScreen({ state, onBack, onExit }) {
       options: [
         { label: 'Recommended setup', value: 'recommended' },
         { label: 'General setup', value: 'general' },
+        { label: 'Disconnect', value: 'disconnect' },
         { label: 'Exit', value: 'exit' }
       ],
       onSelect: (option) => {

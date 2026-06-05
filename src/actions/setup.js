@@ -36,14 +36,19 @@ export async function createTeamAction({
     }
   }
   const memberIds = matchedUsers.map((user) => String(user.id)).filter(Boolean);
+  const matchedEmails = new Set(
+    matchedUsers.map((user) => (user.attributes?.email || '').toLowerCase()).filter(Boolean)
+  );
+  // Matched people are added as members below; only unmatched emails stay as contacts.
+  const contactEmails = cleanEmails.filter((email) => !matchedEmails.has(email.toLowerCase()));
 
   const attributes = {
     name,
     description
   };
 
-  if (cleanEmails.length) {
-    attributes.notify_emails = cleanEmails;
+  if (contactEmails.length) {
+    attributes.notify_emails = contactEmails;
   }
 
   if (enableAlertsAndBroadcast) {
@@ -55,13 +60,13 @@ export async function createTeamAction({
   const teamId = extractTeamId(payload);
 
   if (teamId && memberIds.length && !userLookupUnavailable) {
-    const existingUserIds = Array.isArray(payload?.data?.relationships?.users?.data)
-      ? payload.data.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
-      : [];
+    // Base the union on attributes.user_ids so the auto-added creator is kept.
+    const createdUserIds = (Array.isArray(payload?.data?.attributes?.user_ids)
+      ? payload.data.attributes.user_ids
+      : []).map((id) => String(id)).filter(Boolean);
 
     await api.updateTeam(teamId, {
-      notify_emails: cleanEmails,
-      user_ids: [...new Set([...existingUserIds, ...memberIds])]
+      user_ids: [...new Set([...createdUserIds, ...memberIds])]
     });
   }
 
@@ -85,23 +90,26 @@ export async function createTeamAction({
 
 export async function addTeamMembersAction({ teamId, emails }) {
   const api = await loadApiClient();
-  const teamsPayload = await api.listTeams();
-  const existingTeam = teamsPayload?.data?.find((team) => team?.id === teamId) || null;
-  const existingUserIds = Array.isArray(existingTeam?.relationships?.users?.data)
-    ? existingTeam.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
-    : [];
 
-  console.log(`[debug:add-team-members] teamId=${teamId}`);
-  console.log(`[debug:add-team-members] existingUserIds=${JSON.stringify(existingUserIds)}`);
+  // Current membership lives on the team's attributes.user_ids (integers).
+  const teamPayload = await api.getTeam(teamId);
+  const teamAttributes = teamPayload?.data?.attributes || {};
+  const existingUserIds = (Array.isArray(teamAttributes.user_ids) ? teamAttributes.user_ids : [])
+    .map((id) => String(id))
+    .filter(Boolean);
+  const existingNotifyEmails = Array.isArray(teamAttributes.notify_emails) ? teamAttributes.notify_emails : [];
 
   const cleanEmails = (emails || []).map((value) => value.trim()).filter(Boolean);
   const resolvedMembers = [];
+  const unresolvedEmails = [];
   let userLookupUnavailable = false;
   for (const email of cleanEmails) {
     try {
       const match = await api.findUserByEmail(email);
       if (match) {
         resolvedMembers.push(match);
+      } else {
+        unresolvedEmails.push(email);
       }
     } catch (error) {
       if (isUsersLookupUnavailable(error)) {
@@ -113,59 +121,70 @@ export async function addTeamMembersAction({ teamId, emails }) {
     }
   }
 
-  console.log(`[debug:add-team-members] requestedEmails=${JSON.stringify(cleanEmails)}`);
-  console.log(`[debug:add-team-members] userLookupUnavailable=${userLookupUnavailable}`);
-  console.log(
-    `[debug:add-team-members] resolvedMembers=${JSON.stringify(
-      resolvedMembers.map((user) => ({
-        id: String(user.id),
-        email: user.attributes?.email || null,
-        name: user.attributes?.full_name || user.attributes?.name || null
-      }))
-    )}`
-  );
-
   const resolvedMemberIds = resolvedMembers.map((user) => String(user.id)).filter(Boolean);
 
-  const attributes = {
-    notify_emails: cleanEmails
-  };
-
-  if (!userLookupUnavailable) {
+  const attributes = {};
+  if (userLookupUnavailable) {
+    // No user lookup in this session — fall back to attaching every email as a contact.
+    attributes.notify_emails = [...new Set([...existingNotifyEmails, ...cleanEmails])];
+  } else {
+    // Resolved people become real team members; only unmatched emails stay as contacts.
     attributes.user_ids = [...new Set([...existingUserIds, ...resolvedMemberIds])];
+    if (unresolvedEmails.length) {
+      attributes.notify_emails = [...new Set([...existingNotifyEmails, ...unresolvedEmails])];
+    }
   }
 
-  console.log(`[debug:add-team-members] updateAttributes=${JSON.stringify(attributes)}`);
+  // The PUT response echoes attributes.user_ids, so read membership back to confirm.
   const updatePayload = await api.updateTeam(teamId, attributes);
-  const returnedUserIds = Array.isArray(updatePayload?.data?.relationships?.users?.data)
-    ? updatePayload.data.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
-    : [];
-  const returnedNotifyEmails = Array.isArray(updatePayload?.data?.attributes?.notify_emails)
-    ? updatePayload.data.attributes.notify_emails
-    : [];
-
-  console.log(`[debug:add-team-members] returnedUserIds=${JSON.stringify(returnedUserIds)}`);
-  console.log(`[debug:add-team-members] returnedNotifyEmails=${JSON.stringify(returnedNotifyEmails)}`);
+  const updatedAttributes = updatePayload?.data?.attributes || {};
+  const memberUserIds = (Array.isArray(updatedAttributes.user_ids) ? updatedAttributes.user_ids : existingUserIds)
+    .map((id) => String(id))
+    .filter(Boolean);
+  const addedMemberIds = resolvedMemberIds.filter((id) => !existingUserIds.includes(id));
 
   return {
     ok: true,
     summary: userLookupUnavailable
-      ? `Attached emails to team ${teamId}, but could not resolve Rootly users with this auth session.`
-      : `Updated team ${teamId} membership.`,
+      ? `Attached ${cleanEmails.length} email(s) to team ${teamId} as contacts (could not resolve Rootly users with this auth session).`
+      : `Added ${addedMemberIds.length} member(s) to team ${teamId}.`,
     data: {
       teamId,
       requestedEmails: cleanEmails,
       userLookupUnavailable,
-      existingUserIds,
-      resolvedMemberIds,
-      returnedUserIds,
-      returnedNotifyEmails,
+      addedMemberIds,
+      memberUserIds,
+      unresolvedEmails,
       matchedUsers: resolvedMembers.map((user) => ({
-        id: user.id,
+        id: String(user.id),
         email: user.attributes?.email || null,
         name: user.attributes?.full_name || user.attributes?.name || null
       }))
     }
+  };
+}
+
+export async function addTeamMembersByIdsAction({ teamId, userIds = [] } = {}) {
+  const api = await loadApiClient();
+
+  const teamPayload = await api.getTeam(teamId);
+  const existingUserIds = (Array.isArray(teamPayload?.data?.attributes?.user_ids)
+    ? teamPayload.data.attributes.user_ids
+    : []).map((id) => String(id)).filter(Boolean);
+
+  const selectedIds = (userIds || []).map((id) => String(id)).filter(Boolean);
+  const addedMemberIds = selectedIds.filter((id) => !existingUserIds.includes(id));
+  const nextUserIds = [...new Set([...existingUserIds, ...selectedIds])];
+
+  const updatePayload = await api.updateTeam(teamId, { user_ids: nextUserIds });
+  const memberUserIds = (Array.isArray(updatePayload?.data?.attributes?.user_ids)
+    ? updatePayload.data.attributes.user_ids
+    : nextUserIds).map((id) => String(id)).filter(Boolean);
+
+  return {
+    ok: true,
+    summary: `Added ${addedMemberIds.length} member(s) to team ${teamId}.`,
+    data: { teamId, addedMemberIds, memberUserIds }
   };
 }
 

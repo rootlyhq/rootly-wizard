@@ -1,10 +1,11 @@
 import { loadOnboardingState } from './runtime.js';
 import { getTeamsAction, getSchedulesAction, getEscalationPoliciesAction } from './actions/inspect.js';
-import { getTeamMembersAction } from './actions/inspect.js';
+import { getTeamMembersAction, getAddableTeamMembersAction } from './actions/inspect.js';
 import { getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import {
   createTeamAction,
   addTeamMembersAction,
+  addTeamMembersByIdsAction,
   createScheduleAction,
   createEscalationPolicyAction,
   createAlertSourceAction
@@ -113,6 +114,22 @@ export async function addTeamMembersForTui(input) {
       summary: error?.message || 'The wizard could not update team membership.'
     };
   }
+}
+
+export async function addTeamMembersByIdsForTui(input) {
+  try {
+    return await addTeamMembersByIdsAction(input);
+  } catch (error) {
+    return {
+      ok: false,
+      summary: error?.message || 'The wizard could not add team members.'
+    };
+  }
+}
+
+export async function loadAddableUsersForTui(teamId) {
+  const result = await getAddableTeamMembersAction({ teamId });
+  return result.ok ? result.data : null;
 }
 
 export async function createScheduleForTui(input) {
