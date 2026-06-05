@@ -40,7 +40,7 @@ function computeWindow(items, selectedIndex, maxRows) {
   return { start, end };
 }
 
-export function MenuList({ options, onSelect, onCancel, title }) {
+export function MenuList({ options, onSelect, onCancel, title, tint }) {
   const { rows, columns } = useWindowSize();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [typedDigits, setTypedDigits] = useState('');
@@ -117,6 +117,10 @@ export function MenuList({ options, onSelect, onCancel, title }) {
     const active = index === selectedIndex;
     const numLabel = `${index + 1}`;
     const indent = ' '.repeat(2 + numLabel.length + 2);
+    const cursorColor = tint || (active ? palette.brand : palette.border);
+    const numColor = tint || (active ? palette.brand : palette.muted);
+    const labelColor = tint || (active ? palette.text : palette.muted);
+    const bold = tint ? false : active;
     children.push(
       h(
         Box,
@@ -126,14 +130,14 @@ export function MenuList({ options, onSelect, onCancel, title }) {
             ? h(
                 Box,
                 { key: `${index}-0` },
-                h(Text, { color: active ? palette.brand : palette.border, bold: active }, active ? `${glyphs.cursor} ` : '  '),
-                h(Text, { color: active ? palette.brand : palette.muted }, `${numLabel}  `),
-                h(Text, { color: active ? palette.text : palette.muted, bold: active }, line)
+                h(Text, { color: cursorColor, bold }, active ? `${glyphs.cursor} ` : '  '),
+                h(Text, { color: numColor }, `${numLabel}  `),
+                h(Text, { color: labelColor, bold }, line)
               )
             : h(
                 Box,
                 { key: `${index}-${lineIndex}` },
-                h(Text, { color: active ? palette.text : palette.muted, bold: active }, `${indent}${line}`)
+                h(Text, { color: labelColor, bold }, `${indent}${line}`)
               )
         )
       )

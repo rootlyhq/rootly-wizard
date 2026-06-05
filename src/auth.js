@@ -28,7 +28,7 @@ function escapeHtml(value) {
 const LOGO_DATA_URI = (() => {
   try {
     const here = path.dirname(fileURLToPath(import.meta.url));
-    const file = path.join(here, '..', 'assets', 'rootly-logo-glyph.png');
+    const file = path.join(here, '..', 'assets', 'rootly-logo-glyph-purple.png');
     return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
   } catch {
     return null;
@@ -37,11 +37,10 @@ const LOGO_DATA_URI = (() => {
 
 // Branded HTML shown in the browser after the OAuth redirect.
 function callbackPage({ ok, title, message }) {
-  const ring = ok ? '#2FB66B' : '#F4787B';
+  const purple = '#B197FC';
+  const statusColor = ok ? '#2FB66B' : '#F4787B';
   const glyph = ok ? '&#10003;' : '&#10005;';
-  const logo = LOGO_DATA_URI
-    ? `<img class="logo" src="${LOGO_DATA_URI}" width="76" height="76" alt="Rootly">`
-    : '';
+  const logo = LOGO_DATA_URI ? `<img class="logo" src="${LOGO_DATA_URI}" width="92" height="92" alt="Rootly">` : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,31 +52,38 @@ function callbackPage({ ok, title, message }) {
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #FAFAF8; color: #1A1A1A; padding: 24px; }
-  .card { width: min(420px, 100%); background: #FFFFFF; border-radius: 18px; padding: 44px 38px;
-    box-shadow: 0 12px 44px rgba(20, 20, 20, .10); text-align: center; }
-  .logo { display: block; margin: 0 auto 24px; }
-  .badge { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 18px; color: #fff;
-    background: ${ring}; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-  h1 { font-size: 21px; margin: 0 0 10px; }
-  p { margin: 0; line-height: 1.55; color: #3A3A3A; }
-  .btn { margin-top: 26px; appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 600;
-    color: #FFFFFF; background: #1F1F23; padding: 11px 24px; border-radius: 10px; transition: filter .15s; }
-  .btn:hover { filter: brightness(1.25); }
-  .btn:active { filter: brightness(.9); }
+    background: #F6F5FB; color: #16151D; padding: 24px; }
+  .card { width: min(400px, 100%); background: #FFFFFF; border: 1px solid #ECEAF5; border-radius: 20px;
+    padding: 48px 40px; box-shadow: 0 18px 50px rgba(75, 60, 130, .12); text-align: center; }
+  .logo { display: block; width: 92px; height: 92px; margin: 0 auto 28px; }
+  h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.2px; margin: 0 0 10px;
+    animation: rise .4s ease-out both; }
+  h1 .tick { display: inline-block; color: ${statusColor}; font-weight: 700; margin-right: 7px;
+    transform: scale(0); animation: pop .45s cubic-bezier(.2, .8, .3, 1.4) .22s forwards; }
+  @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { 0% { transform: scale(0); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    h1, h1 .tick { animation: none; transform: none; opacity: 1; }
+  }
+  p { margin: 0 auto; max-width: 300px; line-height: 1.6; font-size: 15px; color: #5C5870; }
+  .btn { margin-top: 28px; appearance: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500;
+    color: #4A4658; background: #FFFFFF; border: 1px solid #D9D6E5; padding: 10px 22px; border-radius: 10px;
+    transition: background .15s, border-color .15s; }
+  .btn:hover { background: #F4F2FB; border-color: #C7C2DA; }
+  .btn:active { background: #ECE9F6; }
   @media (prefers-color-scheme: dark) {
-    body { background: #0E0E10; color: #ECECEC; }
-    .card { background: #17171A; box-shadow: none; border: 1px solid #26262B; }
-    p { color: #C9C9CF; }
-    .btn { color: #15151A; background: #E8E8EA; }
+    body { background: #0D0C12; color: #ECEAF5; }
+    .card { background: #16151D; border-color: #272534; box-shadow: none; }
+    p { color: #A6A2B8; }
+    .btn { color: #C9C5DA; background: transparent; border-color: #34313F; }
+    .btn:hover { background: #201E29; border-color: #423E50; }
   }
 </style>
 </head>
 <body>
   <div class="card">
     ${logo}
-    <div class="badge">${glyph}</div>
-    <h1>${escapeHtml(title)}</h1>
+    <h1><span class="tick">${glyph}</span>${escapeHtml(title)}</h1>
     <p>${escapeHtml(message)}</p>
     <button class="btn" type="button" onclick="window.close()">Close this page</button>
   </div>
