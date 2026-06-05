@@ -17,6 +17,12 @@ export async function createTeamAction({
 } = {}) {
   const api = await loadApiClient();
 
+  // Seed the signed-in human as the team's first member + admin. A user-less
+  // API key authenticates as a service account, which we never seed.
+  const currentUser = await api.getCurrentUser();
+  const currentUserId = extractUserId(currentUser);
+  const selfSeed = currentUserId && !isServiceAccount(currentUser) ? [String(currentUserId)] : [];
+
   const cleanEmails = (memberEmails || []).map((value) => String(value).trim()).filter(Boolean);
   const matchedUsers = [];
   let userLookupUnavailable = false;
@@ -35,20 +41,18 @@ export async function createTeamAction({
       throw error;
     }
   }
-  const memberIds = matchedUsers.map((user) => String(user.id)).filter(Boolean);
-  const matchedEmails = new Set(
-    matchedUsers.map((user) => (user.attributes?.email || '').toLowerCase()).filter(Boolean)
-  );
-  // Matched people are added as members below; only unmatched emails stay as contacts.
-  const contactEmails = cleanEmails.filter((email) => !matchedEmails.has(email.toLowerCase()));
+  const memberIds = matchedUsers.map((user) => Number(user.id)).filter((id) => Number.isFinite(id));
 
   const attributes = {
     name,
-    description
+    description,
+    user_ids: [...selfSeed, ...memberIds],
+    admin_ids: [...selfSeed],
+    auto_add_members_when_attached: true
   };
 
-  if (contactEmails.length) {
-    attributes.notify_emails = contactEmails;
+  if (cleanEmails.length) {
+    attributes.notify_emails = cleanEmails;
   }
 
   if (enableAlertsAndBroadcast) {
@@ -58,17 +62,6 @@ export async function createTeamAction({
 
   const payload = await api.createTeam(attributes);
   const teamId = extractTeamId(payload);
-
-  if (teamId && memberIds.length && !userLookupUnavailable) {
-    // Base the union on attributes.user_ids so the auto-added creator is kept.
-    const createdUserIds = (Array.isArray(payload?.data?.attributes?.user_ids)
-      ? payload.data.attributes.user_ids
-      : []).map((id) => String(id)).filter(Boolean);
-
-    await api.updateTeam(teamId, {
-      user_ids: [...new Set([...createdUserIds, ...memberIds])]
-    });
-  }
 
   return {
     ok: true,
