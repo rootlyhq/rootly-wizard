@@ -2,6 +2,9 @@ import keytar from 'keytar';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 const SERVICE_NAME = 'rootly-wizard';
 const API_TOKEN_ACCOUNT = 'rootly-token';
@@ -14,6 +17,79 @@ const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'all'];
 const REFRESH_SKEW_MS = 30_000;
 const AUTH_REQUEST_TIMEOUT_MS = 30_000;
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]
+  ));
+}
+
+// The Rootly glyph PNG, inlined so the local callback page is self-contained.
+const LOGO_DATA_URI = (() => {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const file = path.join(here, '..', 'assets', 'rootly-logo-glyph-purple.png');
+    return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
+  } catch {
+    return null;
+  }
+})();
+
+// Branded HTML shown in the browser after the OAuth redirect.
+function callbackPage({ ok, title, message }) {
+  const purple = '#B197FC';
+  const statusColor = ok ? '#2FB66B' : '#F4787B';
+  const glyph = ok ? '&#10003;' : '&#10005;';
+  const logo = LOGO_DATA_URI ? `<img class="logo" src="${LOGO_DATA_URI}" width="92" height="92" alt="Rootly">` : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rootly Wizard</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #F6F5FB; color: #16151D; padding: 24px; }
+  .card { width: min(400px, 100%); background: #FFFFFF; border: 1px solid #ECEAF5; border-radius: 20px;
+    padding: 48px 40px; box-shadow: 0 18px 50px rgba(75, 60, 130, .12); text-align: center; }
+  .logo { display: block; width: 92px; height: 92px; margin: 0 auto 28px; }
+  h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.2px; margin: 0 0 10px;
+    animation: rise .4s ease-out both; }
+  h1 .tick { display: inline-block; color: ${statusColor}; font-weight: 700; margin-right: 7px;
+    transform: scale(0); animation: pop .45s cubic-bezier(.2, .8, .3, 1.4) .22s forwards; }
+  @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { 0% { transform: scale(0); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    h1, h1 .tick { animation: none; transform: none; opacity: 1; }
+  }
+  p { margin: 0 auto; max-width: 300px; line-height: 1.6; font-size: 15px; color: #5C5870; }
+  .btn { margin-top: 28px; appearance: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500;
+    color: #4A4658; background: #FFFFFF; border: 1px solid #D9D6E5; padding: 10px 22px; border-radius: 10px;
+    transition: background .15s, border-color .15s; }
+  .btn:hover { background: #F4F2FB; border-color: #C7C2DA; }
+  .btn:active { background: #ECE9F6; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0D0C12; color: #ECEAF5; }
+    .card { background: #16151D; border-color: #272534; box-shadow: none; }
+    p { color: #A6A2B8; }
+    .btn { color: #C9C5DA; background: transparent; border-color: #34313F; }
+    .btn:hover { background: #201E29; border-color: #423E50; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    ${logo}
+    <h1><span class="tick">${glyph}</span>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+    <button class="btn" type="button" onclick="window.close()">Close this page</button>
+  </div>
+</body>
+</html>`;
+}
 
 function authBaseUrl(apiBaseUrl = DEFAULT_API_BASE_URL) {
   const url = new URL(apiBaseUrl);
@@ -389,7 +465,11 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
 
       if (requestUrl.searchParams.get('state') !== state) {
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<h1>Authorization failed</h1><p>State mismatch.</p>');
+        res.end(callbackPage({
+          ok: false,
+          title: 'Sign-in failed',
+          message: 'The sign-in request could not be verified (state mismatch). Return to the terminal and try again.'
+        }));
         finish(() => reject(new Error('OAuth state mismatch')));
         return;
       }
@@ -398,7 +478,7 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
       if (error) {
         const description = requestUrl.searchParams.get('error_description') || error;
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<h1>Authorization failed</h1><p>${description}</p>`);
+        res.end(callbackPage({ ok: false, title: 'Sign-in failed', message: description }));
         finish(() => reject(new Error(description)));
         return;
       }
@@ -406,13 +486,21 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
       const code = requestUrl.searchParams.get('code');
       if (!code) {
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<h1>Authorization failed</h1><p>Missing code.</p>');
+        res.end(callbackPage({
+          ok: false,
+          title: 'Sign-in failed',
+          message: 'No authorization code was returned. Return to the terminal and try again.'
+        }));
         finish(() => reject(new Error('Missing OAuth authorization code')));
         return;
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<h1>Authorization received</h1><p>Rootly Wizard is finishing sign-in in the terminal. You can close this window once the terminal says auth is complete.</p>');
+      res.end(callbackPage({
+        ok: true,
+        title: 'You\'re signed in',
+        message: 'Rootly Wizard is finishing sign-in in your terminal.'
+      }));
       finish(() => resolve({ code }));
     });
 

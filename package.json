@@ -15,6 +15,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "keytar": "^7.9.0"
+    "ink": "^7.0.5",
+    "keytar": "^7.9.0",
+    "react": "^19.2.7"
   }
 }

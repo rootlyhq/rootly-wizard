@@ -43,6 +43,23 @@ export class RootlyApiClient {
     return this.request('/v1/users');
   }
 
+  async listAllUsers() {
+    const users = [];
+    let next = '/v1/users';
+    let pagesScanned = 0;
+
+    while (next && pagesScanned < 100) {
+      pagesScanned += 1;
+      const payload = await this.request(next);
+      if (Array.isArray(payload?.data)) {
+        users.push(...payload.data);
+      }
+      next = payload?.links?.next || null;
+    }
+
+    return users;
+  }
+
   async listSchedules() {
     return this.request('/v1/schedules');
   }

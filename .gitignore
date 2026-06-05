@@ -1,3 +1,5 @@
 node_modules/
 .rootly-wizard-session/
 .mcp.json
+.env
+.claude/
