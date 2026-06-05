@@ -91,6 +91,9 @@ export async function addTeamMembersAction({ teamId, emails }) {
     ? existingTeam.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
     : [];
 
+  console.log(`[debug:add-team-members] teamId=${teamId}`);
+  console.log(`[debug:add-team-members] existingUserIds=${JSON.stringify(existingUserIds)}`);
+
   const cleanEmails = (emails || []).map((value) => value.trim()).filter(Boolean);
   const resolvedMembers = [];
   let userLookupUnavailable = false;
@@ -110,6 +113,18 @@ export async function addTeamMembersAction({ teamId, emails }) {
     }
   }
 
+  console.log(`[debug:add-team-members] requestedEmails=${JSON.stringify(cleanEmails)}`);
+  console.log(`[debug:add-team-members] userLookupUnavailable=${userLookupUnavailable}`);
+  console.log(
+    `[debug:add-team-members] resolvedMembers=${JSON.stringify(
+      resolvedMembers.map((user) => ({
+        id: String(user.id),
+        email: user.attributes?.email || null,
+        name: user.attributes?.full_name || user.attributes?.name || null
+      }))
+    )}`
+  );
+
   const resolvedMemberIds = resolvedMembers.map((user) => String(user.id)).filter(Boolean);
 
   const attributes = {
@@ -120,7 +135,17 @@ export async function addTeamMembersAction({ teamId, emails }) {
     attributes.user_ids = [...new Set([...existingUserIds, ...resolvedMemberIds])];
   }
 
-  await api.updateTeam(teamId, attributes);
+  console.log(`[debug:add-team-members] updateAttributes=${JSON.stringify(attributes)}`);
+  const updatePayload = await api.updateTeam(teamId, attributes);
+  const returnedUserIds = Array.isArray(updatePayload?.data?.relationships?.users?.data)
+    ? updatePayload.data.relationships.users.data.map((user) => String(user.id)).filter(Boolean)
+    : [];
+  const returnedNotifyEmails = Array.isArray(updatePayload?.data?.attributes?.notify_emails)
+    ? updatePayload.data.attributes.notify_emails
+    : [];
+
+  console.log(`[debug:add-team-members] returnedUserIds=${JSON.stringify(returnedUserIds)}`);
+  console.log(`[debug:add-team-members] returnedNotifyEmails=${JSON.stringify(returnedNotifyEmails)}`);
 
   return {
     ok: true,
@@ -131,6 +156,10 @@ export async function addTeamMembersAction({ teamId, emails }) {
       teamId,
       requestedEmails: cleanEmails,
       userLookupUnavailable,
+      existingUserIds,
+      resolvedMemberIds,
+      returnedUserIds,
+      returnedNotifyEmails,
       matchedUsers: resolvedMembers.map((user) => ({
         id: user.id,
         email: user.attributes?.email || null,

@@ -2,6 +2,9 @@ import keytar from 'keytar';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 const SERVICE_NAME = 'rootly-wizard';
 const API_TOKEN_ACCOUNT = 'rootly-token';
@@ -14,6 +17,73 @@ const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'all'];
 const REFRESH_SKEW_MS = 30_000;
 const AUTH_REQUEST_TIMEOUT_MS = 30_000;
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]
+  ));
+}
+
+// The Rootly glyph PNG, inlined so the local callback page is self-contained.
+const LOGO_DATA_URI = (() => {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const file = path.join(here, '..', 'assets', 'rootly-logo-glyph.png');
+    return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
+  } catch {
+    return null;
+  }
+})();
+
+// Branded HTML shown in the browser after the OAuth redirect.
+function callbackPage({ ok, title, message }) {
+  const ring = ok ? '#2FB66B' : '#F4787B';
+  const glyph = ok ? '&#10003;' : '&#10005;';
+  const logo = LOGO_DATA_URI
+    ? `<img class="logo" src="${LOGO_DATA_URI}" width="76" height="76" alt="Rootly">`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rootly Wizard</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAFAF8; color: #1A1A1A; padding: 24px; }
+  .card { width: min(420px, 100%); background: #FFFFFF; border-radius: 18px; padding: 44px 38px;
+    box-shadow: 0 12px 44px rgba(20, 20, 20, .10); text-align: center; }
+  .logo { display: block; margin: 0 auto 24px; }
+  .badge { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 18px; color: #fff;
+    background: ${ring}; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  h1 { font-size: 21px; margin: 0 0 10px; }
+  p { margin: 0; line-height: 1.55; color: #3A3A3A; }
+  .btn { margin-top: 26px; appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 600;
+    color: #FFFFFF; background: #1F1F23; padding: 11px 24px; border-radius: 10px; transition: filter .15s; }
+  .btn:hover { filter: brightness(1.25); }
+  .btn:active { filter: brightness(.9); }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0E0E10; color: #ECECEC; }
+    .card { background: #17171A; box-shadow: none; border: 1px solid #26262B; }
+    p { color: #C9C9CF; }
+    .btn { color: #15151A; background: #E8E8EA; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    ${logo}
+    <div class="badge">${glyph}</div>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+    <button class="btn" type="button" onclick="window.close()">Close this page</button>
+  </div>
+</body>
+</html>`;
+}
 
 function authBaseUrl(apiBaseUrl = DEFAULT_API_BASE_URL) {
   const url = new URL(apiBaseUrl);
@@ -389,7 +459,11 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
 
       if (requestUrl.searchParams.get('state') !== state) {
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<h1>Authorization failed</h1><p>State mismatch.</p>');
+        res.end(callbackPage({
+          ok: false,
+          title: 'Sign-in failed',
+          message: 'The sign-in request could not be verified (state mismatch). Return to the terminal and try again.'
+        }));
         finish(() => reject(new Error('OAuth state mismatch')));
         return;
       }
@@ -398,7 +472,7 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
       if (error) {
         const description = requestUrl.searchParams.get('error_description') || error;
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<h1>Authorization failed</h1><p>${description}</p>`);
+        res.end(callbackPage({ ok: false, title: 'Sign-in failed', message: description }));
         finish(() => reject(new Error(description)));
         return;
       }
@@ -406,13 +480,21 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
       const code = requestUrl.searchParams.get('code');
       if (!code) {
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<h1>Authorization failed</h1><p>Missing code.</p>');
+        res.end(callbackPage({
+          ok: false,
+          title: 'Sign-in failed',
+          message: 'No authorization code was returned. Return to the terminal and try again.'
+        }));
         finish(() => reject(new Error('Missing OAuth authorization code')));
         return;
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<h1>Authorization received</h1><p>Rootly Wizard is finishing sign-in in the terminal. You can close this window once the terminal says auth is complete.</p>');
+      res.end(callbackPage({
+        ok: true,
+        title: 'You\'re signed in',
+        message: 'Rootly Wizard is finishing sign-in in your terminal.'
+      }));
       finish(() => resolve({ code }));
     });
 
