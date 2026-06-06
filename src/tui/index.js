@@ -238,7 +238,13 @@ function InkWizardApp({ onExit }) {
   if (screen === 'auth-token') {
     return h(TextEntryScreen, {
       title: 'API token',
-      prompt: 'Paste a Rootly organization API token.',
+      prompt: 'Paste a Rootly API token.',
+      lines: [
+        'Create one in Rootly: Organization Settings → API Keys → Generate New API Key.',
+        'Use a Global key with write access (teams, schedules, escalation, alerts, incidents),',
+        'or a Personal key if your account can manage those.'
+      ],
+      link: 'Docs: https://docs.rootly.com/api-reference/overview',
       placeholder: 'token',
       hidden: true,
       onSubmit: async (value) => {
@@ -714,11 +720,11 @@ function InkWizardApp({ onExit }) {
   if (screen === 'exit-confirm') {
     return h(OptionScreen, {
       title: 'Exit',
-      lines: ['Keep your Rootly sign-in for next time, or delete it from this machine before exiting?'],
+      lines: ['Keep your saved sign-in for next time?'],
       // Default (first / preselected) option keeps the sign-in.
       options: [
-        { label: 'Keep sign-in and exit', value: 'keep' },
-        { label: 'Delete sign-in and exit', value: 'delete' }
+        { label: 'Keep & exit', value: 'keep' },
+        { label: 'Delete & exit', value: 'delete' }
       ],
       onSelect: async (option) => {
         if (option.value === 'delete') {

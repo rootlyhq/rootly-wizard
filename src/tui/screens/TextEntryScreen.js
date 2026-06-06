@@ -6,6 +6,8 @@ import { palette, glyphs, HINTS } from '../theme.js';
 export function TextEntryScreen({
   title,
   prompt,
+  lines = [],
+  link = null,
   initialValue = '',
   placeholder = '',
   onSubmit,
@@ -50,6 +52,14 @@ export function TextEntryScreen({
       Box,
       { flexDirection: 'column' },
       prompt ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.muted }, prompt)) : null,
+      lines.length
+        ? h(
+            Box,
+            { flexDirection: 'column', marginBottom: 1 },
+            ...lines.map((line, index) => h(Text, { key: `inst-${index}`, color: palette.muted }, line))
+          )
+        : null,
+      link ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.accent }, link)) : null,
       h(
         Box,
         { borderStyle: 'round', borderColor: palette.brand, paddingX: 1, width: fieldWidth + 4 },
