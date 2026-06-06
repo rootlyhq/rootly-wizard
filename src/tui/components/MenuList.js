@@ -113,7 +113,7 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
   if (start > 0) {
     children.push(h(Box, { key: 'uphint', marginBottom: 1 }, h(Text, { color: palette.border }, `  ${glyphs.more}${glyphs.more}${glyphs.more} more above`)));
   }
-  visibleItems.forEach(({ option, index, lines }) => {
+  visibleItems.forEach(({ option, index, lines }, visibleIndex) => {
     const active = index === selectedIndex;
     const numLabel = `${index + 1}`;
     const indent = ' '.repeat(2 + numLabel.length + 2);
@@ -121,10 +121,14 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
     const numColor = tint || (active ? palette.brand : palette.muted);
     const labelColor = tint || (active ? palette.text : palette.muted);
     const bold = tint ? false : active;
+    // Separate option clusters with a blank row when the group changes (e.g.
+    // grouping Disconnect + Exit apart from the primary actions).
+    const prev = visibleItems[visibleIndex - 1]?.option;
+    const groupBreak = prev && option.group && prev.group !== option.group;
     children.push(
       h(
         Box,
-        { key: `${option.label}-${index}`, flexDirection: 'column' },
+        { key: `${option.label}-${index}`, flexDirection: 'column', marginTop: groupBreak ? 1 : 0 },
         ...lines.map((line, lineIndex) =>
           lineIndex === 0
             ? h(

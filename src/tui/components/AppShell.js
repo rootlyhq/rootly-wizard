@@ -2,7 +2,7 @@ import { createElement as h } from 'react';
 import { Box, Text, useWindowSize } from 'ink';
 import { palette, glyphs, HINTS } from '../theme.js';
 
-function KeyHints({ items }) {
+function KeyHints({ items, keyColor = palette.brand }) {
   if (!items?.length) {
     return h(Text, { color: palette.border }, ' ');
   }
@@ -11,13 +11,13 @@ function KeyHints({ items }) {
     if (index > 0) {
       parts.push(h(Text, { key: `sep-${index}`, color: palette.border }, '    '));
     }
-    parts.push(h(Text, { key: `key-${index}`, color: palette.brand }, item.key));
+    parts.push(h(Text, { key: `key-${index}`, color: keyColor }, item.key));
     parts.push(h(Text, { key: `lbl-${index}`, color: palette.muted }, ` ${item.label}`));
   });
   return h(Box, null, ...parts);
 }
 
-export function AppShell({ title, context = 'rootly.com', hints = HINTS.nav, children }) {
+export function AppShell({ title, context = 'rootly.com', hints = HINTS.nav, keyColor = palette.brand, children }) {
   const { columns } = useWindowSize();
   const width = Math.max(46, Math.min(82, (columns || 80) - 4));
   const ruleWidth = Math.max(4, Math.min(title ? title.length : 0, width - 8));
@@ -32,10 +32,10 @@ export function AppShell({ title, context = 'rootly.com', hints = HINTS.nav, chi
       h(
         Box,
         null,
-        h(Text, { color: palette.brand, bold: true }, `${glyphs.logo} `),
+        h(Text, { color: keyColor, bold: true }, `${glyphs.logo} `),
         h(Text, { bold: true, color: palette.text }, 'Rootly Wizard')
       ),
-      h(Text, { color: palette.accent }, context)
+      h(Text, { color: palette.accent, bold: true }, context)
     ),
     // Content card
     h(
@@ -59,6 +59,6 @@ export function AppShell({ title, context = 'rootly.com', hints = HINTS.nav, chi
       ...(Array.isArray(children) ? children : [children]).filter(Boolean)
     ),
     // Footer hints
-    h(Box, { width, marginTop: 1, justifyContent: 'center' }, h(KeyHints, { items: hints }))
+    h(Box, { width, marginTop: 1, justifyContent: 'center' }, h(KeyHints, { items: hints, keyColor }))
   );
 }

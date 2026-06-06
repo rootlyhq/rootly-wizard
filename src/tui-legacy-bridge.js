@@ -12,7 +12,7 @@ import {
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { deleteToken } from './auth.js';
-import { startWebHandoffAction } from './actions/integrations.js';
+import { startWebHandoffAction, openUrl } from './actions/integrations.js';
 import { previewMcpSetupAction, applyMcpSetupAction } from './actions/mcp.js';
 
 function isWorkspaceAccessFailure(error) {
@@ -189,6 +189,15 @@ export async function createTestIncidentForTui(input) {
 
 export async function deleteTokenForTui() {
   return await deleteToken();
+}
+
+export async function openExternalUrlForTui(url) {
+  try {
+    const opened = await openUrl(url);
+    return { ok: true, opened: Boolean(opened) };
+  } catch {
+    return { ok: false, opened: false };
+  }
 }
 
 export async function startWebHandoffForTui(input) {

@@ -1,5 +1,5 @@
 import { createElement as h, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useWindowSize } from 'ink';
 import { AppShell } from '../components/AppShell.js';
 import { palette, glyphs, HINTS } from '../theme.js';
 
@@ -13,6 +13,10 @@ export function TextEntryScreen({
   hidden = false
 }) {
   const [value, setValue] = useState(initialValue);
+  const { columns } = useWindowSize();
+  // Fixed-width field so the box doesn't grow or jitter as you type, and long
+  // values (API tokens) scroll on one line instead of wrapping inside the box.
+  const fieldWidth = Math.max(32, Math.min(64, (columns || 80) - 14));
 
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
@@ -48,9 +52,17 @@ export function TextEntryScreen({
       prompt ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.muted }, prompt)) : null,
       h(
         Box,
-        { borderStyle: 'round', borderColor: palette.brand, paddingX: 1 },
+        { borderStyle: 'round', borderColor: palette.brand, paddingX: 1, width: fieldWidth + 4 },
         h(Text, { color: palette.brand }, `${glyphs.cursor} `),
-        h(Text, { color: isEmpty ? palette.muted : palette.text }, isEmpty ? (placeholder || ' ') : display)
+        h(
+          Box,
+          { width: fieldWidth },
+          h(
+            Text,
+            { color: isEmpty ? palette.muted : palette.text, wrap: 'truncate-start' },
+            isEmpty ? (placeholder || ' ') : display
+          )
+        )
       )
     )
   );

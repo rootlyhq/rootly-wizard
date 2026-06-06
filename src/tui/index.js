@@ -29,6 +29,7 @@ import {
   createTestIncidentForTui,
   deleteTokenForTui,
   startWebHandoffForTui,
+  openExternalUrlForTui,
   previewMcpForTui,
   applyMcpForTui,
   loadTeamMembersForTui
@@ -41,6 +42,8 @@ const SHOW_CURSOR = '\u001b[?25h';
 const CLEAR_SCREEN = '\u001b[2J';
 const CLEAR_SCROLLBACK = '\u001b[3J';
 const CURSOR_HOME = '\u001b[H';
+
+const CEO_CAL_URL = 'https://cal.link/jj';
 
 function enterAltScreen() {
   if (!process.stdout.isTTY) return;
@@ -74,9 +77,15 @@ function InkWizardApp({ onExit }) {
     if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members', 'add-members-picker'].includes(screen)) return undefined;
 
     void (async () => {
-      setLoading(true);
-      const nextAuth = await loadAuthContextForTui();
-      if (!cancelled) {
+      // Reuse cached values across navigation so returning to the menu is
+      // instant. The keychain check and the workspace sweep only run when their
+      // cache is empty; mutations clear the cache (see clearWorkspaceCache),
+      // which forces a fresh load on the next visit.
+      let nextAuth = authContext;
+      if (!nextAuth) {
+        setLoading(true);
+        nextAuth = await loadAuthContextForTui();
+        if (cancelled) return;
         setAuthContext(nextAuth);
       }
       if (!nextAuth?.hasAuth) {
@@ -87,37 +96,45 @@ function InkWizardApp({ onExit }) {
         return;
       }
 
-      const stateResult = await loadOnboardingStateInteractive();
-      if (cancelled) return;
-      if (!stateResult.ok) {
-        setLoading(false);
-        if (stateResult.reason === 'auth-capability') {
-          setAuthRecovery(stateResult);
-          setScreen('auth-recovery');
-        } else {
-          setScreen('load-failed');
+      if (!state) {
+        setLoading(true);
+        const stateResult = await loadOnboardingStateInteractive();
+        if (cancelled) return;
+        if (!stateResult.ok) {
+          setLoading(false);
+          if (stateResult.reason === 'auth-capability') {
+            setAuthRecovery(stateResult);
+            setScreen('auth-recovery');
+          } else {
+            setScreen('load-failed');
+          }
+          return;
         }
-        return;
+        setState(stateResult.state);
       }
-      const nextState = stateResult.state;
-      setState(nextState);
-      if (screen === 'teams') {
+
+      if (screen === 'teams' && !teamsData) {
+        setLoading(true);
         const nextTeams = await loadTeamsForTui();
         if (!cancelled) setTeamsData(nextTeams);
       }
-      if (screen === 'schedules') {
+      if (screen === 'schedules' && !schedulesData) {
+        setLoading(true);
         const nextSchedules = await loadSchedulesForTui();
         if (!cancelled) setSchedulesData(nextSchedules);
       }
-      if (screen === 'policies') {
+      if (screen === 'policies' && !policiesData) {
+        setLoading(true);
         const nextPolicies = await loadEscalationPoliciesForTui();
         if (!cancelled) setPoliciesData(nextPolicies);
       }
-      if (screen === 'schedule-members' && selectedTeam?.id) {
+      if (screen === 'schedule-members' && selectedTeam?.id && !teamMembersData) {
+        setLoading(true);
         const nextMembers = await loadTeamMembersForTui(selectedTeam.id);
         if (!cancelled) setTeamMembersData(nextMembers);
       }
-      if (screen === 'add-members-picker' && selectedTeam?.id) {
+      if (screen === 'add-members-picker' && selectedTeam?.id && !addableUsers) {
+        setLoading(true);
         const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
         if (!cancelled) setAddableUsers(nextAddable);
       }
@@ -136,6 +153,17 @@ function InkWizardApp({ onExit }) {
     exit();
   };
 
+  // Drop the cached workspace snapshot so the next menu/data visit refetches.
+  // Called after any action that may have changed the workspace.
+  const clearWorkspaceCache = () => {
+    setState(null);
+    setTeamsData(null);
+    setSchedulesData(null);
+    setPoliciesData(null);
+    setTeamMembersData(null);
+    setAddableUsers(null);
+  };
+
   if (screen === 'welcome') {
     return h(WelcomeScreen, {
       lines: [
@@ -143,7 +171,10 @@ function InkWizardApp({ onExit }) {
         '',
         'A handful of guided steps covers your teams, schedules, escalation, alerting, and integrations. No docs required.'
       ],
-      onContinue: () => setScreen('auth-method'),
+      // Head to the menu, whose effect checks the keychain for a stored
+      // sign-in: returning users skip auth entirely, and only an unauthed
+      // session gets routed on to the sign-in chooser.
+      onContinue: () => setScreen('menu'),
       onExit: leave
     });
   }
@@ -185,6 +216,8 @@ function InkWizardApp({ onExit }) {
         const result = await authenticateWithBrowserForTui();
         setLoading(false);
         if (result.ok) {
+          setAuthContext(null);
+          clearWorkspaceCache();
           setScreen('menu');
           return;
         }
@@ -212,6 +245,8 @@ function InkWizardApp({ onExit }) {
         const result = await authenticateWithApiTokenForTui(value);
         setLoading(false);
         if (result.ok) {
+          setAuthContext(null);
+          clearWorkspaceCache();
           setScreen('menu');
           return;
         }
@@ -267,7 +302,12 @@ function InkWizardApp({ onExit }) {
     return h(ResultScreen, {
       title: resultScreen.title,
       lines: resultScreen.lines,
-      onContinue: () => setScreen(resultScreen.next),
+      onContinue: () => {
+        // Results that return to the menu may follow a mutation; refresh the
+        // workspace snapshot so coverage reflects the change.
+        if (resultScreen.next === 'menu') clearWorkspaceCache();
+        setScreen(resultScreen.next);
+      },
       onExit: leave,
       continueLabel: resultScreen.next === 'menu' ? 'Continue' : 'Try again'
     });
@@ -567,6 +607,43 @@ function InkWizardApp({ onExit }) {
     });
   }
 
+  if (screen === 'setup-complete') {
+    return h(OptionScreen, {
+      title: "You're incident-ready 🎉",
+      context: 'all set',
+      lines: [
+        'Your core Rootly setup is in place — teams, on-call, escalation, and alerting.',
+        '',
+        'Want to talk through your setup? JJ, our CEO, would love to chat.'
+      ],
+      options: [
+        { label: 'Chat with the CEO', value: 'chat-ceo' },
+        { label: 'Back to menu', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') {
+          setScreen('menu');
+          return;
+        }
+        setLoading(true);
+        const result = await openExternalUrlForTui(CEO_CAL_URL);
+        setLoading(false);
+        setResultScreen({
+          title: 'Chat with the CEO',
+          lines: [
+            result.opened
+              ? "Opened JJ's calendar in your browser."
+              : 'Open this link to book a time with JJ:',
+            CEO_CAL_URL
+          ],
+          next: 'menu'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('menu')
+    });
+  }
+
   if (screen === 'placeholder') {
     return h(OptionScreen, {
       title: 'Nothing to do here',
@@ -575,39 +652,29 @@ function InkWizardApp({ onExit }) {
         'Use the menu to inspect your workspace, run setup, or connect integrations.'
       ],
       options: [
-        { label: 'Back to main menu', value: 'back' },
-        { label: 'Exit wizard', value: 'exit' }
+        { label: 'Back to main menu', value: 'back' }
       ],
-      onSelect: (option) => {
-        if (option.value === 'back') setScreen('menu');
-        else leave();
-      },
+      onSelect: () => setScreen('menu'),
       onBack: () => setScreen('menu')
     });
   }
 
-  if (screen === 'disconnect-confirm') {
+  if (screen === 'exit-confirm') {
     return h(OptionScreen, {
-      title: 'Disconnect',
-      lines: ['Delete the stored Rootly sign-in from this machine?'],
+      title: 'Exit',
+      lines: ['Keep your Rootly sign-in for next time, or delete it from this machine before exiting?'],
+      // Default (first / preselected) option keeps the sign-in.
       options: [
-        { label: 'Delete stored sign-in', value: 'delete' },
-        { label: 'Cancel', value: 'cancel' }
+        { label: 'Keep sign-in and exit', value: 'keep' },
+        { label: 'Delete sign-in and exit', value: 'delete' }
       ],
       onSelect: async (option) => {
-        if (option.value === 'cancel') {
-          setScreen('menu');
-          return;
+        if (option.value === 'delete') {
+          setLoading(true);
+          await deleteTokenForTui();
+          setLoading(false);
         }
-        setLoading(true);
-        const deleted = await deleteTokenForTui();
-        setLoading(false);
-        setResultScreen({
-          title: 'Disconnect',
-          lines: [deleted ? 'Stored sign-in deleted from keychain.' : 'No stored sign-in found, or auth is coming from ROOTLY_TOKEN.'],
-          next: 'menu'
-        });
-        setScreen('result');
+        leave();
       },
       onBack: () => setScreen('menu')
     });
@@ -1020,7 +1087,7 @@ function InkWizardApp({ onExit }) {
           setScreen('team-picker');
           return;
         }
-        setScreen('placeholder');
+        setScreen('setup-complete');
         return;
       }
       if (option.value === 'integrations') {
@@ -1031,17 +1098,13 @@ function InkWizardApp({ onExit }) {
         setScreen('verify-menu');
         return;
       }
-      if (option.value === 'disconnect') {
-        setScreen('disconnect-confirm');
-        return;
-      }
       if (option.value === 'mcp') {
         setScreen('mcp-menu');
         return;
       }
       setScreen('placeholder');
     },
-    onExit: leave
+    onExit: () => setScreen('exit-confirm')
   });
 }
 

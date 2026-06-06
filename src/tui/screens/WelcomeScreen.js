@@ -4,6 +4,7 @@ import { AppShell } from '../components/AppShell.js';
 import { Banner } from '../components/Banner.js';
 import { SlideReveal } from '../components/SlideReveal.js';
 import { MenuList } from '../components/MenuList.js';
+import { palette } from '../theme.js';
 
 // Ramp tops out at the muted resting color so inactive rows (e.g. Exit) don't
 // overshoot to near-white and flash; only the selected row brightens on arrival.
@@ -28,34 +29,37 @@ export function WelcomeScreen({ lines, onContinue, onExit }) {
 
   const menuTint = phase >= 2 && menuStep < MENU_RAMP.length ? MENU_RAMP[menuStep] : undefined;
 
+  const menuOptions = [
+    { label: 'Continue', value: 'continue' },
+    { label: 'Exit', value: 'exit' }
+  ];
+
+  // Reserve the copy and menu rows up front so the bordered card opens at its
+  // final size — sections fade in within this fixed footprint instead of
+  // stretching the box as each stage arrives.
   return h(
     AppShell,
-    { context: 'get started' },
+    { context: 'welcome', keyColor: palette.accent },
     h(Banner, null),
-    phase >= 1
-      ? h(
-          Box,
-          { flexDirection: 'column' },
-          h(SlideReveal, { lines, onDone: () => setPhase(2) })
-        )
-      : null,
-    phase >= 2
-      ? h(
-          Box,
-          { marginTop: 1 },
-          h(MenuList, {
+    h(
+      Box,
+      { flexDirection: 'column', minHeight: lines.length },
+      phase >= 1 ? h(SlideReveal, { lines, onDone: () => setPhase(2) }) : null
+    ),
+    h(
+      Box,
+      { marginTop: 1, minHeight: menuOptions.length },
+      phase >= 2
+        ? h(MenuList, {
             tint: menuTint,
-            options: [
-              { label: 'Continue', value: 'continue' },
-              { label: 'Exit', value: 'exit' }
-            ],
+            options: menuOptions,
             onSelect: (option) => {
               if (option.value === 'continue') onContinue?.();
               else onExit?.();
             },
             onCancel: onExit
           })
-        )
-      : null
+        : null
+    )
   );
 }

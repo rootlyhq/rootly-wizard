@@ -67,10 +67,9 @@ export function MainMenuScreen({ state, onBack, onExit }) {
     h(MenuList, {
       title: 'What would you like to do?',
       options: [
-        { label: 'Recommended setup', value: 'recommended' },
-        { label: 'General setup', value: 'general' },
-        { label: 'Disconnect', value: 'disconnect' },
-        { label: 'Exit', value: 'exit' }
+        { label: 'Recommended setup', value: 'recommended', group: 'setup' },
+        { label: 'General setup', value: 'general', group: 'setup' },
+        { label: 'Exit', value: 'exit', group: 'session' }
       ],
       onSelect: (option) => {
         if (option.value === 'exit') onExit(option);

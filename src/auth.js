@@ -37,7 +37,6 @@ const LOGO_DATA_URI = (() => {
 
 // Branded HTML shown in the browser after the OAuth redirect.
 function callbackPage({ ok, title, message }) {
-  const purple = '#B197FC';
   const statusColor = ok ? '#2FB66B' : '#F4787B';
   const glyph = ok ? '&#10003;' : '&#10005;';
   const logo = LOGO_DATA_URI ? `<img class="logo" src="${LOGO_DATA_URI}" width="92" height="92" alt="Rootly">` : '';

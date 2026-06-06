@@ -7,7 +7,7 @@ const GLYPHS = {
   R: ['█▀▀▄', '█  █', '█▄▄▀', '█ ▀▄', '█  █'],
   W: ['█   █', '█   █', '█ █ █', '██ ██', '█   █'],
   o: ['    ', '▄▀▀▄', '█  █', '█  █', '▀▄▄▀'],
-  t: ['  █ ', ' ███', '  █ ', '  █ ', '  ▀▄'],
+  t: [' █ ', '███', ' █ ', ' █ ', ' ▀▄'],
   l: ['█', '█', '█', '█', '█'],
   y: ['    ', '█  █', '█  █', '▀▄▄█', '▄▄▄▀'],
   i: ['█', ' ', '█', '█', '█'],
@@ -32,8 +32,9 @@ const RAW = ROOTLY.map((line, row) => `${line}   ${WIZARD[row]}`);
 const WIDTH = Math.max(...RAW.map((line) => line.length));
 const WORDMARK = RAW.map((line) => line.padEnd(WIDTH));
 
-// Bright-to-brand trail behind the reveal crest.
-const CREST = ['#FFFFFF', '#FFF4CF', '#FFE9A8', '#FFD45E', palette.brand];
+// Bright-to-brand trail behind the reveal crest (white → brand purple, via
+// the P200/P300/P500 brand tints).
+const CREST = ['#FFFFFF', '#E0DAFB', '#C9BEF7', '#9D86F0', palette.brand];
 const REVEAL_STEP = 3;
 
 export function Banner() {
