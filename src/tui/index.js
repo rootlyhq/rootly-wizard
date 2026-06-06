@@ -723,8 +723,8 @@ function InkWizardApp({ onExit }) {
       lines: ['Keep your saved sign-in for next time?'],
       // Default (first / preselected) option keeps the sign-in.
       options: [
-        { label: 'Keep & exit', value: 'keep' },
-        { label: 'Delete & exit', value: 'delete' }
+        { label: 'Just exit', value: 'keep' },
+        { label: 'Delete from keychain', value: 'delete' }
       ],
       onSelect: async (option) => {
         if (option.value === 'delete') {
