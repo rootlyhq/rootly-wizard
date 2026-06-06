@@ -28,6 +28,7 @@ import {
   createTestAlertForTui,
   createTestIncidentForTui,
   deleteTokenForTui,
+  runOneShotSetupForTui,
   startWebHandoffForTui,
   openExternalUrlForTui,
   previewMcpForTui,
@@ -644,6 +645,57 @@ function InkWizardApp({ onExit }) {
     });
   }
 
+  if (screen === 'one-shot') {
+    return h(OptionScreen, {
+      title: 'Quick start',
+      lines: [
+        'Set up everything at once: a team with you on it, an on-call schedule, an escalation policy, and an alert source — then fire a test alert and open a test incident so you can see the full flow.',
+        '',
+        'Already-existing pieces are reused. A browser sign-in will do as much as it can and tell you what it could not write.'
+      ],
+      options: [
+        { label: 'Run quick start', value: 'run' },
+        { label: 'Back to menu', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') {
+          setScreen('menu');
+          return;
+        }
+        setLoading(true);
+        const result = await runOneShotSetupForTui({});
+        setLoading(false);
+
+        const stepLabels = {
+          team: 'Team',
+          schedule: 'On-call schedule',
+          'escalation-policy': 'Escalation policy',
+          'alert-source': 'Alert source',
+          'test-alert': 'Test alert',
+          'test-incident': 'Test incident'
+        };
+        const statusMark = { ok: '✓', reused: '•', blocked: '⚠', failed: '✗' };
+        const data = result.data || {};
+        const lines = [result.summary, ''];
+        (data.steps || []).forEach((step) => {
+          const suffix = step.status === 'reused' ? ' (existing)'
+            : step.status === 'blocked' ? ' (not permitted by this sign-in)'
+              : step.status === 'failed' ? ` (${step.error})` : '';
+          lines.push(`${statusMark[step.status] || '·'} ${stepLabels[step.step] || step.step}${suffix}`);
+        });
+        if (data.incident?.slackChannelUrl) {
+          lines.push('', `Incident channel: ${data.incident.slackChannelUrl}`);
+        }
+        if (data.note) {
+          lines.push('', data.note);
+        }
+        setResultScreen({ title: 'Quick start', lines, next: 'menu' });
+        setScreen('result');
+      },
+      onBack: () => setScreen('menu')
+    });
+  }
+
   if (screen === 'placeholder') {
     return h(OptionScreen, {
       title: 'Nothing to do here',
@@ -1047,6 +1099,10 @@ function InkWizardApp({ onExit }) {
       }
       if (option.value === 'inspect') {
         setScreen('inspect');
+        return;
+      }
+      if (option.value === 'quickstart') {
+        setScreen('one-shot');
         return;
       }
       if (option.value === 'create-team') {

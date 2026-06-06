@@ -23,6 +23,7 @@ import { createTestAlertAction, createTestIncidentAction } from './testing.js';
 import { startWebHandoffAction } from './integrations.js';
 import { applyMcpSetupAction, previewMcpSetupAction } from './mcp.js';
 import { runGuidedSetupAction } from './guided.js';
+import { runOneShotSetupAction } from './oneshot.js';
 
 // Each action declares whether it mutates Rootly and a lightweight input schema
 // (field -> { type, required?, default?, description }). The schema powers
@@ -192,6 +193,15 @@ export const ACTIONS = {
       includeAlertSource: { type: 'boolean', default: true, description: 'Also create a generic webhook source.' }
     },
     handler: runGuidedSetupAction
+  },
+  'one-shot-setup': {
+    mutates: true,
+    description: 'End-to-end setup: team + schedule + escalation + alert source, then fire a test alert and incident. Auto-detects sign-in capability.',
+    input: {
+      teamName: { type: 'string', default: 'Incident Response', description: 'Team name to create or reuse.' },
+      handoffTime: { type: 'string', default: '09:00', description: 'Daily on-call handoff time (HH:MM).' }
+    },
+    handler: runOneShotSetupAction
   },
   'start-web-handoff': {
     mutates: false,

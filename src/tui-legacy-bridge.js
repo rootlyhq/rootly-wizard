@@ -11,6 +11,7 @@ import {
   createAlertSourceAction
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
+import { runOneShotSetupAction } from './actions/oneshot.js';
 import { deleteToken } from './auth.js';
 import { startWebHandoffAction, openUrl } from './actions/integrations.js';
 import { previewMcpSetupAction, applyMcpSetupAction } from './actions/mcp.js';
@@ -189,6 +190,17 @@ export async function createTestIncidentForTui(input) {
 
 export async function deleteTokenForTui() {
   return await deleteToken();
+}
+
+export async function runOneShotSetupForTui(input) {
+  try {
+    return await runOneShotSetupAction(input);
+  } catch (error) {
+    return {
+      ok: false,
+      summary: error?.message || 'The wizard could not complete one-shot setup.'
+    };
+  }
 }
 
 export async function openExternalUrlForTui(url) {
