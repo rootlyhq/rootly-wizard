@@ -231,7 +231,7 @@ function InkWizardApp({ onExit }) {
             'Keep the current sign-in, or sign in with a different API token.'
           ]
         : [
-            'Sign in with a Rootly API token. It unlocks the full setup, including Quick start.',
+            'Sign in with a Rootly API token.',
             '',
             'Get one in Rootly: Organization Settings → API Keys → Generate New API Key.',
             'Use a Global key with write access, or a Personal key if your account can manage setup.',
