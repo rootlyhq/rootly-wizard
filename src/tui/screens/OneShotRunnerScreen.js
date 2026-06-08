@@ -154,6 +154,9 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
       data.incident?.slackChannelUrl
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Incident channel: ${data.incident.slackChannelUrl}`))
         : null,
+      rows.length
+        ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, 'Verify any of this in the Rootly web app.'))
+        : null,
       data.note ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, data.note)) : null,
       h(
         Box,
