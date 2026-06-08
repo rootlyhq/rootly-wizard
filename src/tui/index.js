@@ -224,22 +224,20 @@ function InkWizardApp({ onExit }) {
   if (screen === 'auth-method') {
     const hasAuth = Boolean(authContext?.hasAuth);
     return h(OptionScreen, {
-      title: 'Sign in with Rootly',
+      title: 'Authorize with a Rootly API token',
       lines: hasAuth
         ? [
-            authContext?.label || 'A Rootly sign-in is already stored on this machine.',
-            'Keep the current sign-in, or sign in with a different API token.'
+            authContext?.label || 'A Rootly API token is already stored on this machine.',
+            'Keep it, or authorize with a different token.'
           ]
         : [
-            'Sign in with a Rootly API token.',
-            '',
             'Get one in Rootly: Organization Settings → API Keys → Generate New API Key.',
             'Use a Global key with write access, or a Personal key if your account can manage setup.',
             'Docs: https://docs.rootly.com/api-reference/overview'
           ],
       options: [
-        ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
-        { label: 'API token', value: 'token' },
+        ...(hasAuth ? [{ label: 'Keep current token', value: 'keep' }] : []),
+        { label: 'Enter API token', value: 'token' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
