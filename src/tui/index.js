@@ -201,7 +201,11 @@ function InkWizardApp({ onExit }) {
     if (data.note) {
       lines.push('', data.note);
     }
-    setResultScreen({ title: 'Quick start', lines, next: 'menu' });
+    // The setup just mutated the workspace; drop the cache so the menu reflects
+    // it. On success, continue to the incident-ready screen (with the CEO
+    // nudge); otherwise return to the menu.
+    clearWorkspaceCache();
+    setResultScreen({ title: 'Recommended setup', lines, next: result.ok ? 'setup-complete' : 'menu' });
     setScreen('result');
   };
 
@@ -641,11 +645,11 @@ function InkWizardApp({ onExit }) {
 
   if (screen === 'one-shot') {
     return h(OptionScreen, {
-      title: 'Quick start',
+      title: 'Recommended setup',
       lines: [
-        'Set up everything at once: a team, an on-call schedule, an escalation policy, and an alert source — then fire a test alert and open a test incident so you can see the full flow.',
+        'Set up everything at once: a team, an on-call schedule, an escalation policy, and an alert source, then fire a test alert and open a test incident so you can see the full flow.',
         '',
-        'Next you’ll pick who goes on the team and on call. Already-existing pieces are reused, and a browser sign-in does as much as it can.'
+        'Next you’ll pick who goes on the team and on call. Anything that already exists is reused.'
       ],
       options: [
         { label: 'Choose members & run', value: 'run' },
@@ -1115,35 +1119,6 @@ function InkWizardApp({ onExit }) {
       }
       if (option.value === 'general') {
         setScreen('general-menu');
-        return;
-      }
-      if (option.value === 'recommended') {
-        const nextAction = state?.onboarding?.nextBestAction;
-        if (nextAction === 'create-team') {
-          setScreen('create-team');
-          return;
-        }
-        if (nextAction === 'invite-team-members') {
-          setFormState({ pendingAction: 'add-members-picker' });
-          setScreen('team-picker');
-          return;
-        }
-        if (nextAction === 'create-schedule') {
-          setFormState({ pendingAction: 'create-schedule-name' });
-          setScreen('team-picker');
-          return;
-        }
-        if (nextAction === 'create-escalation-policy') {
-          setFormState({ pendingAction: 'create-escalation' });
-          setScreen('team-picker');
-          return;
-        }
-        if (nextAction === 'hook-up-monitor') {
-          setFormState({ pendingAction: 'create-alert-source' });
-          setScreen('team-picker');
-          return;
-        }
-        setScreen('setup-complete');
         return;
       }
       if (option.value === 'integrations') {

@@ -67,8 +67,7 @@ export function MainMenuScreen({ state, onBack, onExit }) {
     h(MenuList, {
       title: 'What would you like to do?',
       options: [
-        { label: 'Quick start: get incident-ready in one go', value: 'quickstart', group: 'setup' },
-        { label: 'Recommended setup', value: 'recommended', group: 'setup' },
+        { label: 'Recommended setup', value: 'quickstart', group: 'setup' },
         { label: 'General setup', value: 'general', group: 'setup' },
         { label: 'Exit', value: 'exit', group: 'session' }
       ],
