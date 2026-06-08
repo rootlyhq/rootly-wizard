@@ -18,6 +18,7 @@ import {
   loadSchedulesForTui,
   loadEscalationPoliciesForTui,
   authenticateWithApiTokenForTui,
+  authenticateWithBrowserForTui,
   createTeamForTui,
   addTeamMembersForTui,
   addTeamMembersByIdsForTui,
@@ -96,7 +97,7 @@ function InkWizardApp({ onExit }) {
       if (!nextAuth?.hasAuth) {
         if (!cancelled) {
           setLoading(false);
-          setScreen('auth-token');
+          setScreen('auth-method');
         }
         return;
       }
@@ -189,6 +190,57 @@ function InkWizardApp({ onExit }) {
     });
   }
 
+  if (screen === 'auth-method') {
+    const hasAuth = Boolean(authContext?.hasAuth);
+    return h(OptionScreen, {
+      title: 'Sign in with Rootly',
+      lines: hasAuth
+        ? [
+            authContext?.label || 'A Rootly sign-in is already stored on this machine.',
+            'Keep it, or sign in another way.'
+          ]
+        : [
+            'Choose how to sign in to Rootly.',
+            '',
+            'Browser sign-in uses OAuth. An API token works for the full setup and automation.'
+          ],
+      options: [
+        ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
+        { label: 'Browser sign-in', value: 'browser' },
+        { label: 'API token', value: 'token' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'keep') {
+          setScreen('menu');
+          return;
+        }
+        if (option.value === 'back') {
+          setScreen(hasAuth ? 'menu' : 'welcome');
+          return;
+        }
+        if (option.value === 'token') {
+          setScreen('auth-token');
+          return;
+        }
+        if (option.value === 'browser') {
+          setLoading(true);
+          const result = await authenticateWithBrowserForTui();
+          setLoading(false);
+          if (result.ok) {
+            setAuthContext(null);
+            clearWorkspaceCache();
+            setScreen('menu');
+            return;
+          }
+          setResultScreen({ title: 'Sign-in failed', lines: [result.summary], next: 'auth-method' });
+          setScreen('result');
+        }
+      },
+      onBack: () => setScreen(hasAuth ? 'menu' : 'welcome')
+    });
+  }
+
   if (screen === 'auth-token') {
     const hasAuth = Boolean(authContext?.hasAuth);
     return h(TextEntryScreen, {
@@ -221,7 +273,7 @@ function InkWizardApp({ onExit }) {
         });
         setScreen('result');
       },
-      onBack: () => setScreen(hasAuth ? 'menu' : 'welcome')
+      onBack: () => setScreen('auth-method')
     });
   }
 
@@ -256,7 +308,7 @@ function InkWizardApp({ onExit }) {
         await deleteTokenForTui();
         setAuthRecovery(null);
         setAuthContext(null);
-        setScreen('auth-token');
+        setScreen('auth-method');
       },
       onBack: leave
     });
@@ -331,7 +383,7 @@ function InkWizardApp({ onExit }) {
           return;
         }
         if (option.value === 'auth') {
-          setScreen('auth-token');
+          setScreen('auth-method');
           return;
         }
         setScreen('menu');
@@ -1192,7 +1244,7 @@ function InkWizardApp({ onExit }) {
         return;
       }
       if (option.value === 'auth') {
-        setScreen('auth-token');
+        setScreen('auth-method');
         return;
       }
       if (option.value === 'inspect') {
