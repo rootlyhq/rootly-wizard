@@ -17,7 +17,6 @@ import {
   loadSchedulesForTui,
   loadEscalationPoliciesForTui,
   authenticateWithApiTokenForTui,
-  authenticateWithBrowserForTui,
   createTeamForTui,
   addTeamMembersForTui,
   addTeamMembersByIdsForTui,
@@ -94,7 +93,7 @@ function InkWizardApp({ onExit }) {
       if (!nextAuth?.hasAuth) {
         if (!cancelled) {
           setLoading(false);
-          setScreen('auth-method');
+          setScreen('auth-token');
         }
         return;
       }
@@ -221,68 +220,13 @@ function InkWizardApp({ onExit }) {
     });
   }
 
-  if (screen === 'auth-method') {
-    const hasAuth = Boolean(authContext?.hasAuth);
-    return h(OptionScreen, {
-      title: 'Authorize with a Rootly API token',
-      lines: hasAuth
-        ? [
-            authContext?.label || 'A Rootly API token is already stored on this machine.',
-            'Keep it, or authorize with a different token.'
-          ]
-        : [
-            'Get one in Rootly: Organization Settings → API Keys → Generate New API Key.',
-            'Use a Global key with write access, or a Personal key if your account can manage setup.',
-            'Docs: https://docs.rootly.com/api-reference/overview'
-          ],
-      options: [
-        ...(hasAuth ? [{ label: 'Keep current token', value: 'keep' }] : []),
-        { label: 'Enter API token', value: 'token' },
-        { label: 'Back', value: 'back' }
-      ],
-      onSelect: async (option) => {
-        if (option.value === 'keep') {
-          setScreen('menu');
-          return;
-        }
-        if (option.value === 'back') {
-          setScreen(hasAuth ? 'menu' : 'welcome');
-          return;
-        }
-        if (option.value === 'token') {
-          setScreen('auth-token');
-          return;
-        }
-        // Browser sign-in is currently hidden (it can't write workspace setup),
-        // but the path remains here in case it's re-enabled.
-        if (option.value === 'browser') {
-          setLoading(true);
-          const result = await authenticateWithBrowserForTui();
-          setLoading(false);
-          if (result.ok) {
-            setAuthContext(null);
-            clearWorkspaceCache();
-            setScreen('menu');
-            return;
-          }
-          setResultScreen({
-            title: 'Auth failed',
-            lines: [result.summary],
-            next: 'auth-method'
-          });
-          setScreen('result');
-        }
-      },
-      onBack: () => {
-        setScreen(hasAuth ? 'menu' : 'welcome');
-      }
-    });
-  }
-
   if (screen === 'auth-token') {
+    const hasAuth = Boolean(authContext?.hasAuth);
     return h(TextEntryScreen, {
-      title: 'API token',
-      prompt: 'Paste a Rootly API token.',
+      title: 'Authorize with a Rootly API token',
+      prompt: hasAuth
+        ? 'Paste a token to replace your stored one.'
+        : 'Paste a Rootly API token to authorize.',
       lines: [
         'Create one in Rootly: Organization Settings → API Keys → Generate New API Key.',
         'Use a Global key with write access (teams, schedules, escalation, alerts, incidents),',
@@ -308,7 +252,7 @@ function InkWizardApp({ onExit }) {
         });
         setScreen('result');
       },
-      onBack: () => setScreen('auth-method')
+      onBack: () => setScreen(hasAuth ? 'menu' : 'welcome')
     });
   }
 
@@ -343,7 +287,7 @@ function InkWizardApp({ onExit }) {
         await deleteTokenForTui();
         setAuthRecovery(null);
         setAuthContext(null);
-        setScreen('auth-method');
+        setScreen('auth-token');
       },
       onBack: leave
     });
@@ -418,7 +362,7 @@ function InkWizardApp({ onExit }) {
           return;
         }
         if (option.value === 'auth') {
-          setScreen('auth-method');
+          setScreen('auth-token');
           return;
         }
         setScreen('menu');
@@ -1150,7 +1094,7 @@ function InkWizardApp({ onExit }) {
         return;
       }
       if (option.value === 'auth') {
-        setScreen('auth-method');
+        setScreen('auth-token');
         return;
       }
       if (option.value === 'inspect') {
