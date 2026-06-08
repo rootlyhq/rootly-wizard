@@ -1,170 +1,116 @@
 # Rootly Wizard
 
-Rootly Wizard is a CLI for accelerating Rootly setup.
+Get your Rootly workspace from empty to incident-ready in minutes — without clicking through every setup screen.
 
-The initial goal is to help new customers get operational quickly without needing to understand every Rootly setup surface up front. This is primarily a new customer onboarding flow. Over time, the same tool can support expansion tasks for existing customers, such as adding a new team, connecting another integration, or configuring Rootly MCP for engineers.
-
-## Why this exists
-
-Rootly setup can require a series of product, integration, and configuration decisions that are easy to understand in isolation but harder to assemble into a complete, working setup.
-
-This project aims to provide a guided setup flow that:
-
-- reduces onboarding friction for new customers
-- gives Sales and Solutions a simple activation path during trials
-- helps customers move through common integrations without navigating Rootly blindly
-- creates a foundation for repeatable setup and expansion workflows
-
-The intended experience is:
+Rootly Wizard is a guided command-line setup tool. It walks you through creating a team, putting people on call, wiring up escalation and alerting, and firing a real test alert and incident so you can see the whole flow end to end.
 
 ```bash
 npx @rootly/wizard
 ```
 
-Then follow a guided flow to complete the next meaningful setup task.
+## Requirements
 
-## Running the wizard
+- **Node.js 18 or newer**
+- A **Rootly API token** (see [Authorizing](#authorizing) below)
+- A terminal (macOS, Linux, or Windows)
 
-Preferred entrypoints:
+## Quick start
+
+Run the wizard:
 
 ```bash
 npx @rootly/wizard
 ```
 
-For local development from this repo:
+You'll be asked to authorize with a Rootly API token (stored securely in your OS keychain), then land on the main menu:
+
+- **Quick start** — set everything up at once and see a test alert + incident
+- **Recommended setup** — do the single next best step, guided
+- **General setup** — pick any individual task (teams, on-call, integrations, and more)
+
+That's it. Your token is remembered, so the next run takes you straight to the menu.
+
+## Authorizing
+
+The wizard authorizes with a **Rootly API token**. To create one:
+
+1. Log in to Rootly.
+2. Go to **Organization Settings → API Keys**.
+3. Click **Generate New API Key**, name it, and copy the token.
+
+**Which key type?** Use a **Global** key with write access (teams, schedules, escalation, alerts, incidents) so the wizard can complete setup, or a **Personal** key if your account can already manage those.
+
+Docs: <https://docs.rootly.com/api-reference/overview>
+
+Your token is stored in your operating system's keychain. You can also provide it via the `ROOTLY_TOKEN` environment variable:
 
 ```bash
-node ./src/cli.js
+ROOTLY_TOKEN=rootly_xxx npx @rootly/wizard
 ```
 
-Avoid using `npm start` in demos or user-facing docs, because npm echoes the underlying script command before launching the wizard.
+On exit, the wizard asks whether to keep the saved token or delete it from your keychain (it keeps it by default).
 
-## Product thesis
+## What you can do
 
-Rootly Wizard should be a guided onboarding and expansion tool, not a general replacement for the Rootly UI.
+### Quick start
 
-It should be especially useful in the following situations:
+The fastest path. In one flow it will:
 
-- right after a new customer signs up
-- when a team is setting up incident management for the first time
-- when an existing customer wants to add a new team or integration quickly
-- when a technical user wants procedural MCP / IDE setup
+1. Create a team (or reuse one you're already on)
+2. Let you pick who joins the team and the on-call rotation
+3. Create an on-call schedule
+4. Create an escalation policy
+5. Add an alert source
+6. Fire a **test alert**
+7. Open a **test incident** (with a link to its Slack channel, if Slack is connected)
 
-For MVP, the wizard should optimize for fast time-to-value:
+Anything that already exists is reused, so it's safe to re-run.
 
-- create sensible defaults
-- reduce product decision fatigue
-- prefer deterministic API-backed setup where available
-- use explicit Rootly web handoffs where integrations still live behind the app
+### Recommended setup
 
-## Goals
+Prefer to go one step at a time? Recommended setup looks at your workspace and runs the single most useful next step — create a team, add members, set up a schedule, add an escalation policy, or connect an alert source — and returns you to the menu.
 
-- help a newly signed-up customer get to a usable Rootly setup quickly
-- guide users through a recommended setup sequence
-- encode Rootly best practices into the setup flow
-- support procedural integration setup where CLI is faster than the UI
-- create a reusable setup surface for onboarding and expansion
+### General setup
 
-## Target users
+Jump to any individual task:
 
-### Primary
+- **Teams & members** — create teams, add members from your directory
+- **On-call** — schedules and escalation policies
+- **Integrations** — Slack and alert source handoffs
+- **Verify** — send a test alert or create a test incident
+- **Inspect** — review your current teams, schedules, and coverage
+- **MCP / IDE** — configure the Rootly MCP server for your editor or AI agent
 
-- newly signed-up startup customers
-- technical champions evaluating Rootly during onboarding or trial
-- Sales / Solutions / Customer Success teammates helping customers get set up
+### MCP / IDE setup
 
-### Secondary
+The wizard can write Rootly MCP server config for supported clients: **Cursor, Claude Code, Claude Desktop, Windsurf, and Codex**.
 
-- existing customers adding teams or integrations
-- engineers configuring MCP access for their IDE or agent environment
+## Scripting (advanced)
 
-## MVP scope
+Every setup step is also available non-interactively as a JSON-in/JSON-out action — handy for automation or AI agents:
 
-The MVP should focus on a narrow set of high-value setup tasks.
+```bash
+rootly-wizard action list                 # list available actions
+rootly-wizard action describe <name>      # show an action's inputs
+rootly-wizard action get-recommended-next-step
+rootly-wizard action one-shot-setup '{"teamName":"Payments"}'
+```
 
-### In scope
+Add `"dryRun": true` to any setup action to preview it without making changes.
 
-- guided account setup
-- Slack handoff and resume flow
-- generic webhook alert source setup
-- alert verification / test paging
-- MCP / IDE configuration
-- status / doctor summary with recommended next step
+## Troubleshooting
 
-### Out of scope for MVP
+- **"Authorize with a Rootly API token" keeps appearing** — your token may be missing or invalid. Generate a fresh key (Organization Settings → API Keys) and re-enter it.
+- **Setup steps are skipped or blocked** — the token needs write access. Use a Global key with the relevant permissions.
+- **Nothing happens / wrong screen** — make sure you're on Node.js 18+ and running in an interactive terminal.
 
-- workflows
-- long-tail integrations
-- complex migration flows
-- enterprise rollout orchestration
+## Development
 
-## Recommended setup flow
+From a clone of this repo:
 
-For brand-new customers, the wizard should guide users through a recommended sequence instead of dropping them into raw configuration choices.
+```bash
+node ./src/cli.js     # run the wizard locally
+npm test              # run the test suite
+```
 
-Suggested flow:
-
-1. Sign up / authenticate
-2. Complete workspace setup
-3. Set up the first group and schedule
-4. Create an escalation policy with Rootly defaults
-5. Hook up a generic webhook alert source
-6. Test page
-7. Hand off to Rootly web for Slack connection
-8. Create a test incident
-9. Optionally configure MCP / IDE integration
-
-This ordering is based on the assumption that many startups:
-
-- do not yet know what a good schedule structure looks like
-- want best-practice guidance
-- care most about becoming operational quickly
-
-For the onboarding MVP, the flow breaks into two tracks:
-
-- Alerts: sign up, invite team members, set up on-call, create escalation policy, hook up generic webhook, test page
-- Incidents: connect Slack, create a test incident
-
-## User experience principles
-
-- CLI-first, fast, and low-friction
-- opinionated defaults with clear escape hatches
-- procedural and guided rather than open-ended
-- deterministic setup actions wherever possible
-- useful both during trial and after purchase
-
-The CLI should feel safe for a startup audience. Token-based auth is acceptable for MVP. OAuth should be used where it materially improves setup, especially for Slack. For the onboarding MVP, the wizard assumes an admin org-wide Rootly API key so it can complete setup without permission gaps.
-
-## Technical approach
-
-The current implementation direction is:
-
-- CLI frontend for user interaction
-- Rootly APIs for the setup objects they already expose
-- state detection to understand what is already configured
-- selective automation for local configuration tasks like MCP setup
-- explicit handoff back into the Rootly web app for integrations that do not have supported external APIs
-
-The guiding principle is:
-
-- AI-guided, API-executed
-
-That means the CLI may eventually use AI for recommendations, explanations, and intent shaping, but the core setup steps should remain deterministic and backed by Rootly APIs or existing Rootly setup services.
-
-## Integration priorities
-
-### MVP priorities
-
-- Slack handoff / resume
-- generic webhook alert source setup
-- MCP / IDE setup
-- startup status / doctor flow
-
-### Notes
-
-- Slack and vendor integrations should use the existing Rootly web flow until supported APIs exist
-- MCP setup uses the hosted Rootly MCP server and can write config files for supported clients
-- Supported MCP clients in the current MVP: Cursor, Claude Code, Claude Desktop, Windsurf, Codex
-- Rootly auth can come from a stored token or `ROOTLY_TOKEN`
-- Vendor-specific alert sources stay out of the wizard until we have full support for them
-- workflows should be excluded from MVP because they add too much complexity
+(Use `node ./src/cli.js` rather than `npm start` for demos — `npm start` echoes the underlying command before launching.)
