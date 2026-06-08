@@ -197,9 +197,9 @@ export async function deleteTokenForTui() {
   return await deleteToken();
 }
 
-export async function runOneShotSetupForTui(input) {
+export async function runOneShotSetupForTui(input, onStep) {
   try {
-    return await runOneShotSetupAction(input);
+    return await runOneShotSetupAction(input, onStep);
   } catch (error) {
     return {
       ok: false,

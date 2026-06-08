@@ -10,6 +10,7 @@ import { LoadFailedScreen } from './screens/LoadFailedScreen.js';
 import { TextEntryScreen } from './screens/TextEntryScreen.js';
 import { ResultScreen } from './screens/ResultScreen.js';
 import { MultiSelectScreen } from './screens/MultiSelectScreen.js';
+import { OneShotRunnerScreen } from './screens/OneShotRunnerScreen.js';
 import {
   loadAuthContextForTui,
   loadOnboardingStateInteractive,
@@ -169,44 +170,6 @@ function InkWizardApp({ onExit }) {
     setPoliciesData(null);
     setTeamMembersData(null);
     setAddableUsers(null);
-  };
-
-  // Run the one-shot chain with the chosen members and render a per-step result.
-  const runOneShotWithMembers = async (memberIds) => {
-    setLoading(true);
-    const result = await runOneShotSetupForTui({ memberIds });
-    setLoading(false);
-
-    const stepLabels = {
-      team: 'Team',
-      members: 'Team members',
-      schedule: 'On-call schedule',
-      'escalation-policy': 'Escalation policy',
-      'alert-source': 'Alert source',
-      'test-alert': 'Test alert',
-      'test-incident': 'Test incident'
-    };
-    const statusMark = { ok: '✓', reused: '•', blocked: '⚠', failed: '✗' };
-    const data = result.data || {};
-    const lines = [result.summary, ''];
-    (data.steps || []).forEach((step) => {
-      const suffix = step.status === 'reused' ? ' (existing)'
-        : step.status === 'blocked' ? ' (not permitted by this sign-in)'
-          : step.status === 'failed' ? ` (${step.error})` : '';
-      lines.push(`${statusMark[step.status] || '·'} ${stepLabels[step.step] || step.step}${suffix}`);
-    });
-    if (data.incident?.slackChannelUrl) {
-      lines.push('', `Incident channel: ${data.incident.slackChannelUrl}`);
-    }
-    if (data.note) {
-      lines.push('', data.note);
-    }
-    // The setup just mutated the workspace; drop the cache so the menu reflects
-    // it. On success, continue to the incident-ready screen (with the CEO
-    // nudge); otherwise return to the menu.
-    clearWorkspaceCache();
-    setResultScreen({ title: 'Recommended setup', lines, next: result.ok ? 'setup-complete' : 'menu' });
-    setScreen('result');
   };
 
   if (screen === 'welcome') {
@@ -672,19 +635,23 @@ function InkWizardApp({ onExit }) {
     // and let the chain seed the current identity so the rotation isn't empty.
     if (!options.length) {
       return h(OptionScreen, {
-        title: 'Quick start',
+        title: 'Recommended setup',
         lines: [
           directoryUsers?.userLookupUnavailable
-            ? 'This sign-in can’t list Rootly users, so members can’t be picked. Quick start will still set up the team and put the current identity on call.'
-            : 'No users were found to add. Quick start will set up the team with the current identity on call.'
+            ? 'This sign-in can’t list Rootly users, so members can’t be picked. Setup will still create the team and put the current identity on call.'
+            : 'No users were found to add. Setup will create the team with the current identity on call.'
         ],
         options: [
-          { label: 'Run quick start', value: 'run' },
+          { label: 'Run setup', value: 'run' },
           { label: 'Back to menu', value: 'back' }
         ],
         onSelect: (option) => {
-          if (option.value === 'back') setScreen('menu');
-          else void runOneShotWithMembers([]);
+          if (option.value === 'back') {
+            setScreen('menu');
+            return;
+          }
+          setFormState({ oneShotMemberIds: [] });
+          setScreen('one-shot-running');
         },
         onBack: () => setScreen('menu')
       });
@@ -694,9 +661,36 @@ function InkWizardApp({ onExit }) {
       title: 'Who goes on the team & on call?',
       options,
       onSubmit: (selectedOptions) => {
-        void runOneShotWithMembers(selectedOptions.map((option) => option.value));
+        setFormState({ oneShotMemberIds: selectedOptions.map((option) => option.value) });
+        setScreen('one-shot-running');
       },
       onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'one-shot-running') {
+    const usersById = {};
+    (directoryUsers?.users || []).forEach((user) => {
+      usersById[user.id] = user;
+    });
+    return h(OneShotRunnerScreen, {
+      memberIds: formState.oneShotMemberIds || [],
+      usersById,
+      runner: runOneShotSetupForTui,
+      // A successful run lands on the incident-ready screen (with the CEO nudge).
+      onContinue: () => {
+        clearWorkspaceCache();
+        setScreen('setup-complete');
+      },
+      onMenu: () => {
+        clearWorkspaceCache();
+        setScreen('menu');
+      },
+      onRetry: () => {
+        clearWorkspaceCache();
+        setScreen('one-shot-members');
+      },
+      onExit: leave
     });
   }
 
