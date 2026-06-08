@@ -95,6 +95,16 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
       return;
     }
     if (/^\d$/.test(input)) {
+      // Lists of 9 or fewer: a single digit unambiguously picks a row, so jump
+      // to it and clear the buffer immediately (no two-digit accumulation).
+      if (options.length <= 9) {
+        const parsed = Number.parseInt(input, 10) - 1;
+        if (parsed >= 0 && parsed < options.length) {
+          setSelectedIndex(parsed);
+        }
+        setTypedDigits('');
+        return;
+      }
       const next = `${typedDigits}${input}`.slice(0, 2);
       setTypedDigits(next);
       const parsed = Number.parseInt(next, 10) - 1;
@@ -102,6 +112,8 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
         setSelectedIndex(parsed);
       }
     }
+    // Any other key (letters, symbols) is ignored — only digits, arrows,
+    // enter, and backspace affect the menu.
   });
 
   const children = [];
