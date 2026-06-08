@@ -226,11 +226,11 @@ function InkWizardApp({ onExit }) {
       title: 'Authorize with a Rootly API token',
       prompt: hasAuth
         ? 'Paste a token to replace your stored one.'
-        : 'Paste a Rootly API token to authorize.',
+        : 'Paste your Rootly API token below.',
       lines: [
-        'Create one in Rootly: Organization Settings → API Keys → Generate New API Key.',
-        'Use a Global key with write access (teams, schedules, escalation, alerts, incidents),',
-        'or a Personal key if your account can manage those.'
+        'Need a token? Create one in Rootly:',
+        'Organization Settings → API Keys → New API Key',
+        'Use a Global key with write access'
       ],
       link: 'Docs: https://docs.rootly.com/api-reference/overview',
       placeholder: 'token',

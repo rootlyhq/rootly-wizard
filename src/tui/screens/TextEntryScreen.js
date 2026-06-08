@@ -45,21 +45,20 @@ export function TextEntryScreen({
   const display = hidden ? '•'.repeat(value.length) : value;
   const isEmpty = display.length === 0;
 
+  // Help block convention: the first `line` renders as a muted heading; the
+  // rest render as accent-bulleted steps in readable text. Keep each line short
+  // so it doesn't wrap inside the card.
+  const [helpHeading, ...helpSteps] = lines;
+
   return h(
     AppShell,
     { title, hints: HINTS.entry },
     h(
       Box,
       { flexDirection: 'column' },
-      prompt ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.muted }, prompt)) : null,
-      lines.length
-        ? h(
-            Box,
-            { flexDirection: 'column', marginBottom: 1 },
-            ...lines.map((line, index) => h(Text, { key: `inst-${index}`, color: palette.muted }, line))
-          )
-        : null,
-      link ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.accent }, link)) : null,
+      // The ask — readable, right above the field.
+      prompt ? h(Box, { marginBottom: 1 }, h(Text, { color: palette.text }, prompt)) : null,
+      // The input field.
       h(
         Box,
         { borderStyle: 'round', borderColor: palette.brand, paddingX: 1, width: fieldWidth + 4 },
@@ -73,7 +72,24 @@ export function TextEntryScreen({
             isEmpty ? (placeholder || ' ') : display
           )
         )
-      )
+      ),
+      // Supporting help, below the field.
+      lines.length
+        ? h(
+            Box,
+            { flexDirection: 'column', marginTop: 1 },
+            helpHeading ? h(Text, { key: 'help-h', color: palette.muted }, helpHeading) : null,
+            ...helpSteps.map((line, index) =>
+              h(
+                Box,
+                { key: `help-${index}` },
+                h(Text, { color: palette.accent }, `  ${glyphs.dot} `),
+                h(Text, { color: palette.text }, line)
+              )
+            )
+          )
+        : null,
+      link ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, link)) : null
     )
   );
 }
