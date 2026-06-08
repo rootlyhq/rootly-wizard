@@ -78,7 +78,9 @@ export function TextEntryScreen({
         ? h(
             Box,
             { flexDirection: 'column', marginTop: 1 },
-            helpHeading ? h(Text, { key: 'help-h', color: palette.muted }, helpHeading) : null,
+            helpHeading
+              ? h(Box, { key: 'help-h', marginBottom: 1 }, h(Text, { color: palette.text }, helpHeading))
+              : null,
             ...helpSteps.map((line, index) =>
               h(
                 Box,
