@@ -54,6 +54,7 @@ export const HINTS = {
   ],
   multi: [
     { key: 'space', label: 'toggle' },
+    { key: 'a', label: 'all' },
     { key: '↵', label: 'confirm' },
     { key: 'esc', label: 'back' },
   ],

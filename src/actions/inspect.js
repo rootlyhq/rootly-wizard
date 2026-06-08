@@ -202,6 +202,43 @@ function usersLookupUnavailable(error) {
   return message.includes('/v1/users') && message.includes('404');
 }
 
+export async function getDirectoryUsersAction() {
+  const token = await getActiveToken();
+  if (!token) {
+    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
+  }
+
+  const api = await loadApiClient();
+
+  // Limited OAuth sessions can't read /v1/users; flag that so the caller can
+  // fall back gracefully instead of failing.
+  let allUsers = [];
+  let userLookupUnavailable = false;
+  try {
+    allUsers = await api.listAllUsers();
+  } catch (error) {
+    if (usersLookupUnavailable(error)) {
+      userLookupUnavailable = true;
+    } else {
+      throw error;
+    }
+  }
+
+  const users = allUsers
+    .filter((record) => !isServiceAccount(record))
+    .map((record) => ({
+      id: String(record.id),
+      name: record?.attributes?.full_name || record?.attributes?.name || null,
+      email: record?.attributes?.email || null
+    }));
+
+  return {
+    ok: true,
+    summary: `Loaded ${users.length} directory user(s).`,
+    data: { total: users.length, users, userLookupUnavailable }
+  };
+}
+
 export async function getAddableTeamMembersAction({ teamId } = {}) {
   const token = await getActiveToken();
   if (!token) {

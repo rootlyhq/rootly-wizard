@@ -1,6 +1,7 @@
 import { loadApiClient, extractUserId, isServiceAccount } from '../runtime.js';
 import { getAuthSummary } from '../auth.js';
 import {
+  addTeamMembersByIdsAction,
   createAlertSourceAction,
   createEscalationPolicyAction,
   createScheduleAction,
@@ -26,7 +27,8 @@ function isPermissionFailure(error) {
 // result explains what it could not write.
 export async function runOneShotSetupAction({
   teamName = 'Incident Response',
-  handoffTime = '09:00'
+  handoffTime = '09:00',
+  memberIds = []
 } = {}) {
   const api = await loadApiClient();
   const authSummary = await getAuthSummary();
@@ -67,7 +69,12 @@ export async function runOneShotSetupAction({
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
   const serviceAccount = isServiceAccount(currentUser);
-  const selfMemberIds = currentUserId && !serviceAccount ? [Number(currentUserId)] : [];
+
+  // The humans to put on the team + rotation. When none are chosen, fall back
+  // to the current identity (even an API-key bot) so the rotation is never
+  // empty and the demo shows someone on call.
+  const chosenIds = (memberIds || []).map((id) => String(id)).filter(Boolean);
+  const rotationIds = chosenIds.length ? chosenIds : (currentUserId ? [String(currentUserId)] : []);
 
   // 1. Team — reuse the signed-in user's existing team so a re-run doesn't pile
   // up duplicates. A user-less API key has none, so it creates one.
@@ -89,8 +96,12 @@ export async function runOneShotSetupAction({
 
   // 2-4. Team-dependent scaffolding — only if a team is in place.
   if (teamId) {
+    if (chosenIds.length) {
+      await run('members', () => addTeamMembersByIdsAction({ teamId, userIds: chosenIds }));
+    }
+
     const schedule = await run('schedule', () =>
-      createScheduleAction({ teamId, name: `${teamName} On-Call`, handoffTime, memberIds: selfMemberIds })
+      createScheduleAction({ teamId, name: `${teamName} On-Call`, handoffTime, memberIds: rotationIds })
     );
     if (schedule) data.schedule = { id: schedule.data.scheduleId };
 

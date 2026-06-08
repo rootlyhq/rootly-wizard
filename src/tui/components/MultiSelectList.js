@@ -86,6 +86,13 @@ export function MultiSelectList({ options, onSubmit, onCancel, title }) {
       });
       return;
     }
+    // 'a' toggles the whole list — select everyone (full roster) or clear.
+    if (input === 'a') {
+      setSelected((current) =>
+        current.size === options.length ? new Set() : new Set(options.map((_, index) => index))
+      );
+      return;
+    }
     if (key.return) {
       onSubmit([...selected].map((index) => options[index]));
     }

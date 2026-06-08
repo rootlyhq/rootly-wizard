@@ -1,6 +1,6 @@
 import { loadOnboardingState } from './runtime.js';
 import { getTeamsAction, getSchedulesAction, getEscalationPoliciesAction } from './actions/inspect.js';
-import { getTeamMembersAction, getAddableTeamMembersAction } from './actions/inspect.js';
+import { getTeamMembersAction, getAddableTeamMembersAction, getDirectoryUsersAction } from './actions/inspect.js';
 import { getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import {
   createTeamAction,
@@ -130,6 +130,11 @@ export async function addTeamMembersByIdsForTui(input) {
 
 export async function loadAddableUsersForTui(teamId) {
   const result = await getAddableTeamMembersAction({ teamId });
+  return result.ok ? result.data : null;
+}
+
+export async function loadDirectoryUsersForTui() {
+  const result = await getDirectoryUsersAction();
   return result.ok ? result.data : null;
 }
 

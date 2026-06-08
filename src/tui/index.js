@@ -22,6 +22,7 @@ import {
   addTeamMembersForTui,
   addTeamMembersByIdsForTui,
   loadAddableUsersForTui,
+  loadDirectoryUsersForTui,
   createScheduleForTui,
   createEscalationPolicyForTui,
   createAlertSourceForTui,
@@ -71,11 +72,12 @@ function InkWizardApp({ onExit }) {
   const [mcpPreview, setMcpPreview] = useState(null);
   const [teamMembersData, setTeamMembersData] = useState(null);
   const [addableUsers, setAddableUsers] = useState(null);
+  const [directoryUsers, setDirectoryUsers] = useState(null);
   const [authRecovery, setAuthRecovery] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members', 'add-members-picker'].includes(screen)) return undefined;
+    if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members', 'add-members-picker', 'one-shot-members'].includes(screen)) return undefined;
 
     void (async () => {
       // Reuse cached values across navigation so returning to the menu is
@@ -139,6 +141,11 @@ function InkWizardApp({ onExit }) {
         const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
         if (!cancelled) setAddableUsers(nextAddable);
       }
+      if (screen === 'one-shot-members' && !directoryUsers) {
+        setLoading(true);
+        const dir = await loadDirectoryUsersForTui();
+        if (!cancelled) setDirectoryUsers(dir);
+      }
       if (!cancelled) {
         setLoading(false);
       }
@@ -163,6 +170,40 @@ function InkWizardApp({ onExit }) {
     setPoliciesData(null);
     setTeamMembersData(null);
     setAddableUsers(null);
+  };
+
+  // Run the one-shot chain with the chosen members and render a per-step result.
+  const runOneShotWithMembers = async (memberIds) => {
+    setLoading(true);
+    const result = await runOneShotSetupForTui({ memberIds });
+    setLoading(false);
+
+    const stepLabels = {
+      team: 'Team',
+      members: 'Team members',
+      schedule: 'On-call schedule',
+      'escalation-policy': 'Escalation policy',
+      'alert-source': 'Alert source',
+      'test-alert': 'Test alert',
+      'test-incident': 'Test incident'
+    };
+    const statusMark = { ok: '✓', reused: '•', blocked: '⚠', failed: '✗' };
+    const data = result.data || {};
+    const lines = [result.summary, ''];
+    (data.steps || []).forEach((step) => {
+      const suffix = step.status === 'reused' ? ' (existing)'
+        : step.status === 'blocked' ? ' (not permitted by this sign-in)'
+          : step.status === 'failed' ? ` (${step.error})` : '';
+      lines.push(`${statusMark[step.status] || '·'} ${stepLabels[step.step] || step.step}${suffix}`);
+    });
+    if (data.incident?.slackChannelUrl) {
+      lines.push('', `Incident channel: ${data.incident.slackChannelUrl}`);
+    }
+    if (data.note) {
+      lines.push('', data.note);
+    }
+    setResultScreen({ title: 'Quick start', lines, next: 'menu' });
+    setScreen('result');
   };
 
   if (screen === 'welcome') {
@@ -655,48 +696,54 @@ function InkWizardApp({ onExit }) {
     return h(OptionScreen, {
       title: 'Quick start',
       lines: [
-        'Set up everything at once: a team with you on it, an on-call schedule, an escalation policy, and an alert source — then fire a test alert and open a test incident so you can see the full flow.',
+        'Set up everything at once: a team, an on-call schedule, an escalation policy, and an alert source — then fire a test alert and open a test incident so you can see the full flow.',
         '',
-        'Already-existing pieces are reused. A browser sign-in will do as much as it can and tell you what it could not write.'
+        'Next you’ll pick who goes on the team and on call. Already-existing pieces are reused, and a browser sign-in does as much as it can.'
       ],
       options: [
-        { label: 'Run quick start', value: 'run' },
+        { label: 'Choose members & run', value: 'run' },
         { label: 'Back to menu', value: 'back' }
       ],
-      onSelect: async (option) => {
-        if (option.value === 'back') {
-          setScreen('menu');
-          return;
-        }
-        setLoading(true);
-        const result = await runOneShotSetupForTui({});
-        setLoading(false);
+      onSelect: (option) => {
+        setScreen(option.value === 'run' ? 'one-shot-members' : 'menu');
+      },
+      onBack: () => setScreen('menu')
+    });
+  }
 
-        const stepLabels = {
-          team: 'Team',
-          schedule: 'On-call schedule',
-          'escalation-policy': 'Escalation policy',
-          'alert-source': 'Alert source',
-          'test-alert': 'Test alert',
-          'test-incident': 'Test incident'
-        };
-        const statusMark = { ok: '✓', reused: '•', blocked: '⚠', failed: '✗' };
-        const data = result.data || {};
-        const lines = [result.summary, ''];
-        (data.steps || []).forEach((step) => {
-          const suffix = step.status === 'reused' ? ' (existing)'
-            : step.status === 'blocked' ? ' (not permitted by this sign-in)'
-              : step.status === 'failed' ? ` (${step.error})` : '';
-          lines.push(`${statusMark[step.status] || '·'} ${stepLabels[step.step] || step.step}${suffix}`);
-        });
-        if (data.incident?.slackChannelUrl) {
-          lines.push('', `Incident channel: ${data.incident.slackChannelUrl}`);
-        }
-        if (data.note) {
-          lines.push('', data.note);
-        }
-        setResultScreen({ title: 'Quick start', lines, next: 'menu' });
-        setScreen('result');
+  if (screen === 'one-shot-members') {
+    const options = (directoryUsers?.users || []).map((user) => ({
+      label: user.name ? `${user.name}${user.email ? ` — ${user.email}` : ''}` : (user.email || user.id),
+      value: user.id
+    }));
+
+    // No directory (e.g. an OAuth session that can't read /v1/users): run anyway
+    // and let the chain seed the current identity so the rotation isn't empty.
+    if (!options.length) {
+      return h(OptionScreen, {
+        title: 'Quick start',
+        lines: [
+          directoryUsers?.userLookupUnavailable
+            ? 'This sign-in can’t list Rootly users, so members can’t be picked. Quick start will still set up the team and put the current identity on call.'
+            : 'No users were found to add. Quick start will set up the team with the current identity on call.'
+        ],
+        options: [
+          { label: 'Run quick start', value: 'run' },
+          { label: 'Back to menu', value: 'back' }
+        ],
+        onSelect: (option) => {
+          if (option.value === 'back') setScreen('menu');
+          else void runOneShotWithMembers([]);
+        },
+        onBack: () => setScreen('menu')
+      });
+    }
+
+    return h(MultiSelectScreen, {
+      title: 'Who goes on the team & on call?',
+      options,
+      onSubmit: (selectedOptions) => {
+        void runOneShotWithMembers(selectedOptions.map((option) => option.value));
       },
       onBack: () => setScreen('menu')
     });

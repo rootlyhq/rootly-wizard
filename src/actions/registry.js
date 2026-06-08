@@ -199,7 +199,8 @@ export const ACTIONS = {
     description: 'End-to-end setup: team + schedule + escalation + alert source, then fire a test alert and incident. Auto-detects sign-in capability.',
     input: {
       teamName: { type: 'string', default: 'Incident Response', description: 'Team name to create or reuse.' },
-      handoffTime: { type: 'string', default: '09:00', description: 'Daily on-call handoff time (HH:MM).' }
+      handoffTime: { type: 'string', default: '09:00', description: 'Daily on-call handoff time (HH:MM).' },
+      memberIds: { type: 'array', items: 'string', description: 'User IDs to add as team members and put on the rotation. Defaults to the current identity.' }
     },
     handler: runOneShotSetupAction
   },

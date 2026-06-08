@@ -72,6 +72,42 @@ test('runOneShotSetupAction runs the whole chain and ends with an alert + incide
   assert.equal(incident.body.data.attributes.severity_id, 'sev1');
 });
 
+test('runOneShotSetupAction adds chosen members and puts them on the rotation', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42', attributes: { email: 'bot+apikey-x@rootly.com' } } } };
+    if (req.href.endsWith('/v1/teams') && req.method === 'POST') return { body: { data: { id: '100' } } };
+    if (req.href.includes('/v1/teams/100') && req.method === 'GET') return { body: { data: { attributes: { user_ids: [] } } } };
+    if (req.href.includes('/v1/teams/100') && req.method === 'PUT') return { body: { data: { attributes: { user_ids: ['7', '9'] } } } };
+    if (req.href.endsWith('/v1/schedules') && req.method === 'POST') return { body: { data: { id: 'sch1' } } };
+    if (req.href.includes('/schedule_rotations') && req.method === 'POST') return { body: { data: { id: 'rot1' } } };
+    if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep1' } } };
+    if (req.href.includes('/escalation_paths') && req.method === 'POST') return { body: { data: { id: 'path1' } } };
+    if (req.href.endsWith('/v1/alert_sources') && req.method === 'POST') return { body: { data: { id: 'as1' } } };
+    if (req.href.endsWith('/v1/alerts') && req.method === 'POST') return { body: { data: { id: 'al1' } } };
+    if (req.href.endsWith('/v1/severities')) return { body: { data: [] } };
+    if (req.href.endsWith('/v1/incidents') && req.method === 'POST') return { body: { data: { id: 'inc1' } } };
+    return { body: {} };
+  });
+
+  const result = await runOneShotSetupAction({ memberIds: ['7', '9'] });
+
+  assert.equal(result.ok, true);
+  assert.equal(statusOf(result, 'members'), 'ok');
+
+  // Chosen users are merged onto the team...
+  const put = calls.find((c) => c.href.includes('/v1/teams/100') && c.method === 'PUT');
+  assert.deepEqual(put.body.data.attributes.user_ids, ['7', '9']);
+
+  // ...and placed on the rotation in order (not the API-key bot identity).
+  const members = calls
+    .find((c) => c.href.includes('/schedule_rotations') && c.method === 'POST')
+    .body.data.attributes.schedule_rotation_members;
+  assert.deepEqual(members, [
+    { member_type: 'User', member_id: '7', position: 1 },
+    { member_type: 'User', member_id: '9', position: 2 }
+  ]);
+});
+
 test('runOneShotSetupAction reuses the signed-in user\'s existing team', async () => {
   const calls = installFetch((req) => {
     if (req.href.endsWith('/v1/users/me')) {
