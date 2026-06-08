@@ -233,7 +233,7 @@ function InkWizardApp({ onExit }) {
         : [
             'Sign in with a Rootly API token.',
             '',
-            'A token unlocks the full setup, including Quick start. Browser sign-in can’t write workspace setup yet.'
+            'A token unlocks the full setup, including Quick start.'
           ],
       options: [
         ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
