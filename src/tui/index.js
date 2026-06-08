@@ -228,16 +228,15 @@ function InkWizardApp({ onExit }) {
       lines: hasAuth
         ? [
             authContext?.label || 'A Rootly sign-in is already stored on this machine.',
-            'Keep the current sign-in, or switch to another method.'
+            'Keep the current sign-in, or sign in with a different API token.'
           ]
         : [
-            'Choose a sign-in method.',
+            'Sign in with a Rootly API token.',
             '',
-            'Browser sign-in is quickest. API token works well for fallback and automation.'
+            'A token unlocks the full setup, including Quick start. Browser sign-in can’t write workspace setup yet.'
           ],
       options: [
         ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
-        { label: 'Browser sign-in', value: 'browser' },
         { label: 'API token', value: 'token' },
         { label: 'Back', value: 'back' }
       ],
@@ -254,21 +253,25 @@ function InkWizardApp({ onExit }) {
           setScreen('auth-token');
           return;
         }
-        setLoading(true);
-        const result = await authenticateWithBrowserForTui();
-        setLoading(false);
-        if (result.ok) {
-          setAuthContext(null);
-          clearWorkspaceCache();
-          setScreen('menu');
-          return;
+        // Browser sign-in is currently hidden (it can't write workspace setup),
+        // but the path remains here in case it's re-enabled.
+        if (option.value === 'browser') {
+          setLoading(true);
+          const result = await authenticateWithBrowserForTui();
+          setLoading(false);
+          if (result.ok) {
+            setAuthContext(null);
+            clearWorkspaceCache();
+            setScreen('menu');
+            return;
+          }
+          setResultScreen({
+            title: 'Auth failed',
+            lines: [result.summary],
+            next: 'auth-method'
+          });
+          setScreen('result');
         }
-        setResultScreen({
-          title: 'Auth failed',
-          lines: [result.summary],
-          next: 'auth-method'
-        });
-        setScreen('result');
       },
       onBack: () => {
         setScreen(hasAuth ? 'menu' : 'welcome');
