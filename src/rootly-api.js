@@ -192,6 +192,38 @@ export class RootlyApiClient {
     });
   }
 
+  async createUserPhoneNumber(userId, phone) {
+    return this.request(`/v1/users/${userId}/phone_numbers`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'user_phone_numbers',
+          attributes: { phone }
+        }
+      }
+    });
+  }
+
+  // Triggers a Twilio SMS with a verification code (member route is shallow).
+  async sendPhoneVerification(phoneNumberId) {
+    return this.request(`/v1/phone_numbers/${phoneNumberId}/verify`, { method: 'POST' });
+  }
+
+  async submitPhoneVerificationCode(phoneNumberId, code) {
+    return this.request(`/v1/phone_numbers/${phoneNumberId}/verify_code`, {
+      method: 'PATCH',
+      body: { code }
+    });
+  }
+
+  async resendPhoneVerification(phoneNumberId) {
+    return this.request(`/v1/phone_numbers/${phoneNumberId}/resend_verification`, { method: 'POST' });
+  }
+
+  async deleteUserPhoneNumber(phoneNumberId) {
+    return this.request(`/v1/phone_numbers/${phoneNumberId}`, { method: 'DELETE' });
+  }
+
   async findUserByEmail(email) {
     const target = String(email).toLowerCase();
     let next = '/v1/users';

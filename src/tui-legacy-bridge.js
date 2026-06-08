@@ -12,6 +12,11 @@ import {
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { runOneShotSetupAction } from './actions/oneshot.js';
+import {
+  startPhoneVerificationAction,
+  confirmPhoneVerificationAction,
+  resendPhoneVerificationAction
+} from './actions/phone.js';
 import { deleteToken } from './auth.js';
 import { startWebHandoffAction, openUrl } from './actions/integrations.js';
 import { previewMcpSetupAction, applyMcpSetupAction } from './actions/mcp.js';
@@ -214,6 +219,30 @@ export async function openExternalUrlForTui(url) {
     return { ok: true, opened: Boolean(opened) };
   } catch {
     return { ok: false, opened: false };
+  }
+}
+
+export async function startPhoneVerificationForTui(input) {
+  try {
+    return await startPhoneVerificationAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'Could not start phone verification.' };
+  }
+}
+
+export async function confirmPhoneVerificationForTui(input) {
+  try {
+    return await confirmPhoneVerificationAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'Could not verify the phone number.' };
+  }
+}
+
+export async function resendPhoneVerificationForTui(input) {
+  try {
+    return await resendPhoneVerificationAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'Could not resend the verification code.' };
   }
 }
 

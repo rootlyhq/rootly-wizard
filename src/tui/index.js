@@ -30,6 +30,8 @@ import {
   createTestIncidentForTui,
   deleteTokenForTui,
   runOneShotSetupForTui,
+  startPhoneVerificationForTui,
+  confirmPhoneVerificationForTui,
   startWebHandoffForTui,
   openExternalUrlForTui,
   previewMcpForTui,
@@ -660,12 +662,66 @@ function InkWizardApp({ onExit }) {
           return;
         }
         if (option.value === 'phone') {
-          await openHandoff('Phone', 'Add a phone number', 'your Rootly profile (Profile → notification settings)');
+          setScreen('phone-entry');
           return;
         }
         setScreen(option.value === 'continue' ? 'one-shot-members' : 'menu');
       },
       onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'phone-entry') {
+    return h(TextEntryScreen, {
+      title: 'Add a phone number',
+      prompt: 'Enter your mobile number in international format.',
+      lines: ['We’ll text you a code to verify it.'],
+      placeholder: '+14155550123',
+      onSubmit: async (value) => {
+        setLoading(true);
+        const result = await startPhoneVerificationForTui({ phone: value });
+        setLoading(false);
+        if (result.ok) {
+          setFormState((prev) => ({ ...prev, phoneNumberId: result.data.phoneNumberId, phone: result.data.phone }));
+          setScreen('phone-code');
+          return;
+        }
+        setResultScreen({ title: 'Add a phone number', lines: [result.summary], next: 'phone-entry', continueLabel: 'Try again' });
+        setScreen('result');
+      },
+      onBack: () => setScreen('one-shot-prereqs')
+    });
+  }
+
+  if (screen === 'phone-code') {
+    return h(TextEntryScreen, {
+      title: 'Verify phone number',
+      prompt: `Enter the 6-digit code we texted to ${formState.phone || 'your phone'}.`,
+      lines: ['It can take a few seconds to arrive.'],
+      placeholder: '123456',
+      onSubmit: async (value) => {
+        setLoading(true);
+        const result = await confirmPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId, code: value });
+        setLoading(false);
+        if (result.ok) {
+          setResultScreen({
+            title: 'Phone verified',
+            lines: ['Your phone number is verified and ready for paging.'],
+            next: 'one-shot-prereqs',
+            continueLabel: 'Done'
+          });
+          setScreen('result');
+          return;
+        }
+        setResultScreen({
+          title: 'Verification failed',
+          lines: [result.summary, 'Check the code and try again.'],
+          next: 'phone-code',
+          continueLabel: 'Try again'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('one-shot-prereqs')
     });
   }
 
