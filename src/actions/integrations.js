@@ -6,6 +6,9 @@ export function webHandoffUrl(kind, appBaseUrl = DEFAULT_APP_BASE_URL) {
   switch (kind) {
     case 'Slack':
       return `${appBaseUrl}/account/integrations/slack_accounts/landing`;
+    case 'Phone':
+      // User profile, where phone numbers and notification rules are managed.
+      return `${appBaseUrl}/account/profile`;
     case 'Datadog':
       return `${appBaseUrl}/account/integrations/datadog_accounts/new`;
     case 'Sentry':

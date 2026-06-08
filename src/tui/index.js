@@ -271,7 +271,7 @@ function InkWizardApp({ onExit }) {
         setScreen(resultScreen.next);
       },
       onExit: leave,
-      continueLabel: resultScreen.next === 'menu' ? 'Continue' : 'Try again'
+      continueLabel: resultScreen.continueLabel || (resultScreen.next === 'menu' ? 'Continue' : 'Try again')
     });
   }
 
@@ -615,11 +615,55 @@ function InkWizardApp({ onExit }) {
         'Next you’ll pick who goes on the team and on call. Anything that already exists is reused.'
       ],
       options: [
-        { label: 'Choose members & run', value: 'run' },
+        { label: 'Continue', value: 'continue' },
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: (option) => {
-        setScreen(option.value === 'run' ? 'one-shot-members' : 'menu');
+        setScreen(option.value === 'continue' ? 'one-shot-prereqs' : 'menu');
+      },
+      onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'one-shot-prereqs') {
+    const openHandoff = async (kind, title, where) => {
+      setLoading(true);
+      const result = await startWebHandoffForTui({ kind, open: true });
+      setLoading(false);
+      const url = result?.data?.url;
+      setResultScreen({
+        title,
+        lines: result?.data?.opened
+          ? [`Opened ${where} in your browser.`, 'Finish there, then come back to continue.', url].filter(Boolean)
+          : ['Open this link to continue:', url].filter(Boolean),
+        next: 'one-shot-prereqs',
+        continueLabel: 'Done'
+      });
+      setScreen('result');
+    };
+
+    return h(OptionScreen, {
+      title: 'Before we set up',
+      lines: [
+        'A test alert and incident only reach you if you have somewhere to be notified.',
+        'Connect Slack and/or add a phone number, then continue. You can also skip and do this later.'
+      ],
+      options: [
+        { label: 'Connect Slack', value: 'slack' },
+        { label: 'Add a phone number', value: 'phone' },
+        { label: 'Continue to setup', value: 'continue' },
+        { label: 'Back to menu', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'slack') {
+          await openHandoff('Slack', 'Connect Slack', 'Slack setup');
+          return;
+        }
+        if (option.value === 'phone') {
+          await openHandoff('Phone', 'Add a phone number', 'your Rootly profile (Profile → notification settings)');
+          return;
+        }
+        setScreen(option.value === 'continue' ? 'one-shot-members' : 'menu');
       },
       onBack: () => setScreen('menu')
     });
