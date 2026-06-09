@@ -65,17 +65,12 @@ function callbackPage({ ok, title, message }) {
     h1, h1 .tick { animation: none; transform: none; opacity: 1; }
   }
   p { margin: 0 auto; max-width: 300px; line-height: 1.6; font-size: 15px; color: #5C5870; }
-  .btn { margin-top: 28px; appearance: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500;
-    color: #4A4658; background: #FFFFFF; border: 1px solid #D9D6E5; padding: 10px 22px; border-radius: 10px;
-    transition: background .15s, border-color .15s; }
-  .btn:hover { background: #F4F2FB; border-color: #C7C2DA; }
-  .btn:active { background: #ECE9F6; }
+  .hint { margin-top: 28px; font-size: 13px; color: #8C88A0; }
   @media (prefers-color-scheme: dark) {
     body { background: #0D0C12; color: #ECEAF5; }
     .card { background: #16151D; border-color: #272534; box-shadow: none; }
     p { color: #A6A2B8; }
-    .btn { color: #C9C5DA; background: transparent; border-color: #34313F; }
-    .btn:hover { background: #201E29; border-color: #423E50; }
+    .hint { color: #6F6B82; }
   }
 </style>
 </head>
@@ -84,7 +79,7 @@ function callbackPage({ ok, title, message }) {
     ${logo}
     <h1><span class="tick">${glyph}</span>${escapeHtml(title)}</h1>
     <p>${escapeHtml(message)}</p>
-    <button class="btn" type="button" onclick="window.close()">Close this page</button>
+    <p class="hint">You can close this tab and return to the terminal.</p>
   </div>
 </body>
 </html>`;
