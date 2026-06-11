@@ -211,15 +211,16 @@ function InkWizardApp({ onExit }) {
         ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
         { label: 'Browser sign-in', value: 'browser' },
         { label: 'API token', value: 'token' },
-        { label: 'Back', value: 'back' }
+        { label: 'Exit', value: 'exit' }
       ],
       onSelect: async (option) => {
         if (option.value === 'keep') {
           setScreen('menu');
           return;
         }
-        if (option.value === 'back') {
-          setScreen(hasAuth ? 'menu' : 'welcome');
+        if (option.value === 'exit') {
+          // Exit, with the option to keep or delete the stored sign-in.
+          setScreen('exit-confirm');
           return;
         }
         if (option.value === 'token') {
