@@ -734,9 +734,9 @@ function InkWizardApp({ onExit }) {
   if (screen === 'phone-entry') {
     return h(TextEntryScreen, {
       title: 'Add a phone number',
-      prompt: 'Enter your mobile number in international format.',
-      lines: ['We’ll text you a code to verify it.'],
-      placeholder: '+14155550123',
+      prompt: 'Enter your mobile number. We’ll text you a code to verify it.',
+      lines: ['Outside the US? Start with your country code, like +44.'],
+      placeholder: '(415) 555-0123',
       onSubmit: async (value) => {
         setLoading(true);
         const result = await startPhoneVerificationForTui({ phone: value });

@@ -17,7 +17,9 @@ const PHONE_BLOCKED_MESSAGE =
 // Add a phone number to the signed-in user and trigger a verification SMS.
 // Returns the new phone number id so the caller can submit the code next.
 export async function startPhoneVerificationAction({ phone } = {}) {
-  const clean = String(phone || '').trim();
+  // Strip spaces, parens, dashes, dots; keep digits and a leading "+". A US
+  // number works without a country code (Rootly normalizes with a US default).
+  const clean = String(phone || '').replace(/[()\s.\-]/g, '').trim();
   if (!clean) {
     return { ok: false, summary: 'A phone number is required.' };
   }
