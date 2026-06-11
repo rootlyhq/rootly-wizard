@@ -1,5 +1,5 @@
 import { createElement as h, useEffect, useState } from 'react';
-import { render, useApp, Box, Text } from 'ink';
+import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
@@ -633,7 +633,6 @@ function InkWizardApp({ onExit }) {
         Box,
         { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
         h(Celebration),
-        h(Box, { marginBottom: 1 }, h(Text, { color: palette.muted }, "You're")),
         h(BigText, { text: 'INCIDENT-READY', color: palette.success })
       ),
       lines: [
