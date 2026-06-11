@@ -1,5 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
-import { render, useApp } from 'ink';
+import { render, useApp, Box, Text } from 'ink';
+import { palette } from './theme.js';
+import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
 import { StatusScreen } from './screens/StatusScreen.js';
@@ -626,9 +628,14 @@ function InkWizardApp({ onExit }) {
 
   if (screen === 'setup-complete') {
     return h(OptionScreen, {
-      title: "You're incident-ready",
       context: 'all set',
-      header: h(Celebration),
+      header: h(
+        Box,
+        { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+        h(Celebration),
+        h(Box, { marginBottom: 1 }, h(Text, { color: palette.muted }, "You're")),
+        h(BigText, { text: 'INCIDENT-READY', color: palette.success })
+      ),
       lines: [
         'Your core Rootly setup is in place — teams, on-call, escalation, and alerting.',
         '',
