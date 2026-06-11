@@ -4,6 +4,8 @@ Get your Rootly workspace from empty to incident-ready in minutes — without cl
 
 Rootly Wizard is a guided command-line setup tool. It walks you through creating a team, putting people on call, wiring up escalation and alerting, and firing a real test alert and incident so you can see the whole flow end to end.
 
+![Rootly Wizard welcome screen](assets/welcome-screen.png)
+
 ```bash
 npx @rootly/wizard
 ```
