@@ -641,7 +641,7 @@ function InkWizardApp({ onExit }) {
         'Want to talk through your setup? JJ, our CEO, would love to chat.'
       ],
       options: [
-        { label: 'Chat with the CEO', value: 'chat-ceo' },
+        { label: 'Chat with JJ', value: 'chat-ceo' },
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -653,7 +653,7 @@ function InkWizardApp({ onExit }) {
         const result = await openExternalUrlForTui(CEO_CAL_URL);
         setLoading(false);
         setResultScreen({
-          title: 'Chat with the CEO',
+          title: 'Chat with JJ',
           lines: [
             result.opened
               ? "Opened JJ's calendar in your browser."
