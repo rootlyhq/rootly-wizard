@@ -11,6 +11,7 @@ import { TextEntryScreen } from './screens/TextEntryScreen.js';
 import { ResultScreen } from './screens/ResultScreen.js';
 import { MultiSelectScreen } from './screens/MultiSelectScreen.js';
 import { OneShotRunnerScreen } from './screens/OneShotRunnerScreen.js';
+import { Celebration } from './components/Celebration.js';
 import {
   loadAuthContextForTui,
   loadOnboardingStateInteractive,
@@ -625,8 +626,9 @@ function InkWizardApp({ onExit }) {
 
   if (screen === 'setup-complete') {
     return h(OptionScreen, {
-      title: "You're incident-ready 🎉",
+      title: "You're incident-ready",
       context: 'all set',
+      header: h(Celebration),
       lines: [
         'Your core Rootly setup is in place — teams, on-call, escalation, and alerting.',
         '',
