@@ -688,10 +688,9 @@ function InkWizardApp({ onExit }) {
       setResultScreen({
         title,
         lines: result?.data?.opened
-          ? [`Opened ${where} in your browser.`, 'Finish there, then come back to continue.', url].filter(Boolean)
-          : ['Open this link to continue:', url].filter(Boolean),
-        next: 'one-shot-prereqs',
-        continueLabel: 'Done'
+          ? [`Opened ${where} in your browser.`, 'We’ll be here when you’re done.', url].filter(Boolean)
+          : ['Open this link to finish, then continue here:', url].filter(Boolean),
+        next: 'one-shot-prereqs'
       });
       setScreen('result');
     };
