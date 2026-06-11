@@ -4,6 +4,16 @@ function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
 }
 
+// Browser (OAuth) sign-ins can't manage phone numbers yet (403/404). Surface a
+// clear next step instead of the raw API error.
+function isPermissionFailure(error) {
+  const message = error?.message || '';
+  return /\b40[134]\b/.test(message) || /Not found or unauthorized/i.test(message);
+}
+
+const PHONE_BLOCKED_MESSAGE =
+  'This sign-in can’t add phone numbers. Sign in with an API token, or add your number in the Rootly app.';
+
 // Add a phone number to the signed-in user and trigger a verification SMS.
 // Returns the new phone number id so the caller can submit the code next.
 export async function startPhoneVerificationAction({ phone } = {}) {
@@ -24,6 +34,9 @@ export async function startPhoneVerificationAction({ phone } = {}) {
     const created = await api.createUserPhoneNumber(userId, clean);
     phoneNumberId = created?.data?.id || null;
   } catch (error) {
+    if (isPermissionFailure(error)) {
+      return { ok: false, summary: PHONE_BLOCKED_MESSAGE };
+    }
     return { ok: false, summary: `Could not add the phone number: ${formatError(error)}` };
   }
   if (!phoneNumberId) {
@@ -38,6 +51,9 @@ export async function startPhoneVerificationAction({ phone } = {}) {
       await api.deleteUserPhoneNumber(phoneNumberId);
     } catch {
       // best-effort cleanup
+    }
+    if (isPermissionFailure(error)) {
+      return { ok: false, summary: PHONE_BLOCKED_MESSAGE };
     }
     return { ok: false, summary: `Could not send a verification code: ${formatError(error)}` };
   }
