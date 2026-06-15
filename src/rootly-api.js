@@ -156,6 +156,22 @@ export class RootlyApiClient {
     });
   }
 
+  async createEscalationLevel(escalationPolicyId, attributes) {
+    return this.request(`/v1/escalation_policies/${escalationPolicyId}/escalation_levels`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'escalation_levels',
+          attributes
+        }
+      }
+    });
+  }
+
+  async listAlertUrgencies() {
+    return this.request('/v1/alert_urgencies');
+  }
+
   async createAlertSource(attributes) {
     return this.request('/v1/alert_sources', {
       method: 'POST',

@@ -143,7 +143,9 @@ export async function runOneShotSetupAction({
         teamId,
         name: `${teamLabel} Escalation`,
         repeatCount: 1,
-        createDefaultPath: Boolean(data.schedule)
+        createDefaultPath: Boolean(data.schedule),
+        // Add a level paging the on-call schedule so a triggered alert reaches a person.
+        scheduleId: data.schedule?.id || null
       })
     );
     if (escalation) data.escalationPolicy = { id: escalation.data.id, name: `${teamLabel} Escalation` };
@@ -160,17 +162,33 @@ export async function runOneShotSetupAction({
     }
   }
 
-  // 5. Test alert — the "see an alert" payoff. Works with or without a team.
+  // 5. Test alert — the "see an alert" payoff, and the thing that actually
+  // pages you. When we have an escalation policy, trigger the alert against it
+  // (urgency high) so it escalates to the on-call person and rings their phone.
   const groupIds = teamId ? [teamId] : [];
   const alertSummary = 'Rootly setup test alert';
+
+  let highUrgencyId = null;
+  try {
+    const urgencies = await api.listAlertUrgencies();
+    const list = urgencies?.data || [];
+    highUrgencyId = (list.find((u) => /high/i.test(u?.attributes?.name || '')) || list[0])?.id || null;
+  } catch {
+    // best-effort; urgency is optional.
+  }
+
+  const policyId = data.escalationPolicy?.id || null;
   const alert = await run('test-alert', () =>
     createTestAlertAction({
       summary: alertSummary,
-      description: 'Fired by the Rootly setup wizard to confirm alerting works.',
-      groupIds
+      description: 'Fired by the Rootly setup wizard to page on-call.',
+      groupIds,
+      ...(policyId
+        ? { notificationTargetType: 'EscalationPolicy', notificationTargetId: policyId, urgencyId: highUrgencyId }
+        : {})
     })
   );
-  if (alert) data.alert = { id: alert.data.id, summary: alertSummary };
+  if (alert) data.alert = { id: alert.data.id, summary: alertSummary, paged: Boolean(alert.data.paged) };
 
   // 6. Test incident — the "see an incident" payoff. Attach a severity when the
   // workspace exposes one (some workspaces require it).

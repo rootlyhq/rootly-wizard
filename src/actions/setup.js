@@ -242,7 +242,7 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
   };
 }
 
-export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false } = {}) {
+export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false, scheduleId = null } = {}) {
   const api = await loadApiClient();
 
   const payload = await api.createEscalationPolicy({
@@ -259,9 +259,10 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
   // already-created policy (which would orphan it), so it is caught here.
   let pathCreated = false;
   let pathError = null;
+  let pathId = null;
   if (createDefaultPath && policyId) {
     try {
-      await api.createEscalationPath(policyId, {
+      const pathPayload = await api.createEscalationPath(policyId, {
         name: `${name} Path`,
         notification_type: 'audible',
         path_type: 'escalation',
@@ -272,9 +273,28 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
         initial_delay: 0,
         rules: []
       });
+      pathId = pathPayload?.data?.id || null;
       pathCreated = true;
     } catch (error) {
       pathError = formatError(error);
+    }
+  }
+
+  // Add a level that pages the on-call person from the schedule, so a triggered
+  // alert actually reaches someone (audible → their call/SMS notification rules).
+  let levelCreated = false;
+  let levelError = null;
+  if (scheduleId && policyId) {
+    try {
+      await api.createEscalationLevel(policyId, {
+        position: 1,
+        ...(pathId ? { escalation_policy_path_id: pathId } : {}),
+        notification_target_params: [{ id: scheduleId, type: 'schedule' }],
+        paging_strategy_configuration_schedule_strategy: 'on_call_only'
+      });
+      levelCreated = true;
+    } catch (error) {
+      levelError = formatError(error);
     }
   }
 
@@ -287,7 +307,9 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
       name,
       repeatCount,
       pathCreated,
-      pathError
+      pathError,
+      levelCreated,
+      levelError
     }
   };
 }

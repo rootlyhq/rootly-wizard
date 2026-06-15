@@ -42,6 +42,8 @@ test('runOneShotSetupAction runs the whole chain and ends with an alert + incide
     if (req.href.includes('/schedule_rotations') && req.method === 'POST') return { body: { data: { id: 'rot1' } } };
     if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep1' } } };
     if (req.href.includes('/escalation_paths') && req.method === 'POST') return { body: { data: { id: 'path1' } } };
+    if (req.href.includes('/escalation_levels') && req.method === 'POST') return { body: { data: { id: 'lvl1' } } };
+    if (req.href.endsWith('/v1/alert_urgencies')) return { body: { data: [{ id: 'urg-high', attributes: { name: 'High' } }] } };
     if (req.href.endsWith('/v1/alert_sources') && req.method === 'POST') return { body: { data: { id: 'as1', attributes: { webhook_endpoint: 'https://hook' } } } };
     if (req.href.endsWith('/v1/alerts') && req.method === 'POST') return { body: { data: { id: 'al1' } } };
     if (req.href.endsWith('/v1/severities')) return { body: { data: [{ id: 'sev1' }] } };
@@ -63,9 +65,19 @@ test('runOneShotSetupAction runs the whole chain and ends with an alert + incide
   assert.deepEqual(result.data.blocked, []);
   assert.equal(result.data.note, null);
 
-  // The alert + incident are scoped to the freshly created team, and the
-  // incident carries the workspace's first severity.
+  // An escalation level is created targeting the on-call schedule, so a
+  // triggered alert pages a person.
+  const level = calls.find((c) => c.href.includes('/escalation_levels') && c.method === 'POST');
+  assert.ok(level, 'escalation level created');
+  assert.deepEqual(level.body.data.attributes.notification_target_params, [{ id: 'sch1', type: 'schedule' }]);
+
+  // The test alert is triggered against the escalation policy (urgency high) so
+  // it actually pages the on-call person — not just a passive record.
   const alert = calls.find((c) => c.href.endsWith('/v1/alerts') && c.method === 'POST');
+  assert.equal(alert.body.data.attributes.notification_target_type, 'EscalationPolicy');
+  assert.equal(alert.body.data.attributes.notification_target_id, 'ep1');
+  assert.equal(alert.body.data.attributes.status, 'triggered');
+  assert.equal(alert.body.data.attributes.alert_urgency_id, 'urg-high');
   assert.deepEqual(alert.body.data.attributes.group_ids, ['100']);
   const incident = calls.find((c) => c.href.endsWith('/v1/incidents') && c.method === 'POST');
   assert.deepEqual(incident.body.data.attributes.group_ids, ['100']);

@@ -9,11 +9,18 @@ export async function createTestAlertAction({
   description = '',
   groupIds = [],
   serviceIds = [],
-  environmentIds = []
+  environmentIds = [],
+  // When a notification target is given (e.g. an escalation policy), the alert
+  // is triggered against it so it actually pages the on-call person.
+  notificationTargetType = null,
+  notificationTargetId = null,
+  urgencyId = null,
+  source = 'api'
 } = {}) {
   const api = await loadApiClient();
   const attributes = {
-    summary
+    summary,
+    source
   };
 
   const cleanedDescription = String(description || '').trim();
@@ -37,6 +44,18 @@ export async function createTestAlertAction({
     attributes.environment_ids = cleanedEnvironmentIds;
   }
 
+  // Page a target (escalation policy / schedule / user / group) so the alert
+  // escalates to whoever is on call and notifies them.
+  const paged = Boolean(notificationTargetType && notificationTargetId);
+  if (paged) {
+    attributes.notification_target_type = notificationTargetType;
+    attributes.notification_target_id = String(notificationTargetId);
+    attributes.status = 'triggered';
+  }
+  if (urgencyId) {
+    attributes.alert_urgency_id = String(urgencyId);
+  }
+
   const payload = await api.createAlert(attributes);
 
   return {
@@ -45,7 +64,9 @@ export async function createTestAlertAction({
     data: {
       id: payload?.data?.id || null,
       summary,
-      description: cleanedDescription
+      description: cleanedDescription,
+      paged,
+      notificationTargetType: paged ? notificationTargetType : null
     }
   };
 }
