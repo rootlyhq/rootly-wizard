@@ -150,6 +150,9 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
       Box,
       { flexDirection: 'column' },
       h(Box, { marginBottom: 1 }, h(Text, { color: result.ok ? palette.success : palette.warning, bold: true }, result.summary)),
+      // Keep the finished checklist on screen so you can review what was created
+      // before continuing.
+      h(Box, { flexDirection: 'column', marginBottom: 1 }, ...steps.map((entry) => h(ProgressRow, { key: entry.step, entry, frame }))),
       h(Box, { flexDirection: 'column' }, ...rows.map((row) => h(SummaryRow, { key: row.label, label: row.label, value: row.value }))),
       data.incident?.slackChannelUrl
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Incident channel: ${data.incident.slackChannelUrl}`))
