@@ -17,6 +17,7 @@ import {
   createAlertSourceAction,
   createEscalationPolicyAction,
   createScheduleAction,
+  createStatusPageAction,
   createTeamAction
 } from './setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './testing.js';
@@ -144,6 +145,15 @@ export const ACTIONS = {
       createDefaultPath: { type: 'boolean', description: 'Also create a default escalation path.' }
     },
     handler: createEscalationPolicyAction
+  },
+  'create-status-page': {
+    mutates: true,
+    description: 'Create a status page (internal by default).',
+    input: {
+      title: { type: 'string', required: true, description: 'Status page title.' },
+      isPublic: { type: 'boolean', description: 'Make it public (default false = internal).' }
+    },
+    handler: createStatusPageAction
   },
   'create-alert-source': {
     mutates: true,

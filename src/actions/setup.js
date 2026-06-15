@@ -341,6 +341,32 @@ export async function createAlertSourceAction({ teamId, name = 'Generic webhook'
   };
 }
 
+export async function createStatusPageAction({ title, isPublic = false } = {}) {
+  const clean = String(title || '').trim();
+  if (!clean) {
+    return { ok: false, summary: 'A status page title is required.' };
+  }
+
+  const api = await loadApiClient();
+  const payload = await api.createStatusPage({
+    title: clean,
+    public: Boolean(isPublic),
+    enabled: true
+  });
+  const attributes = payload?.data?.attributes || {};
+
+  return {
+    ok: true,
+    summary: `Created ${isPublic ? 'public' : 'internal'} status page ${clean}.`,
+    data: {
+      id: payload?.data?.id || null,
+      title: clean,
+      public: Boolean(attributes.public),
+      url: attributes.url || attributes.public_url || attributes.slug || null
+    }
+  };
+}
+
 export function serializeActionError(error, fallbackSummary) {
   return {
     ok: false,

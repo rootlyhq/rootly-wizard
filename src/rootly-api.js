@@ -172,6 +172,18 @@ export class RootlyApiClient {
     return this.request('/v1/alert_urgencies');
   }
 
+  async createStatusPage(attributes) {
+    return this.request('/v1/status-pages', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'status_pages',
+          attributes
+        }
+      }
+    });
+  }
+
   async createAlertSource(attributes) {
     return this.request('/v1/alert_sources', {
       method: 'POST',

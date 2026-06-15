@@ -30,6 +30,7 @@ import {
   createScheduleForTui,
   createEscalationPolicyForTui,
   createAlertSourceForTui,
+  createStatusPageForTui,
   createTestAlertForTui,
   createTestIncidentForTui,
   deleteTokenForTui,
@@ -480,6 +481,7 @@ function InkWizardApp({ onExit }) {
         { label: 'Add team members', value: 'add-members-picker' },
         { label: 'Create a schedule', value: 'create-schedule' },
         { label: 'Create an escalation policy', value: 'create-escalation' },
+        { label: 'Create an internal status page', value: 'create-status-page' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: (option) => {
@@ -489,6 +491,10 @@ function InkWizardApp({ onExit }) {
         }
         if (option.value === 'create-team') {
           setScreen('create-team');
+          return;
+        }
+        if (option.value === 'create-status-page') {
+          setScreen('create-status-page');
           return;
         }
         setFormState({ pendingAction: option.value === 'create-schedule' ? 'create-schedule-name' : option.value });
@@ -989,6 +995,33 @@ function InkWizardApp({ onExit }) {
         setScreen('result');
       },
       onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'create-status-page') {
+    return h(TextEntryScreen, {
+      title: 'Create an internal status page',
+      prompt: 'Name your status page. It stays internal (visible only inside Rootly) until you publish it.',
+      placeholder: 'Status page title',
+      onSubmit: async (value) => {
+        setLoading(true);
+        const result = await createStatusPageForTui({ title: value, isPublic: false });
+        setLoading(false);
+        setResultScreen({
+          title: result.ok ? 'Status page created' : 'Status page setup needs attention',
+          lines: result.ok
+            ? [
+                `Title: ${result.data?.title || value}`,
+                'Visibility: internal',
+                result.data?.id ? `Status page ID: ${result.data.id}` : 'Status page created',
+                'Manage and publish it from the Rootly web app.'
+              ]
+            : [result.summary],
+          next: result.ok ? 'menu' : 'create-status-page'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('setup-menu')
     });
   }
 

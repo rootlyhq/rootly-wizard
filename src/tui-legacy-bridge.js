@@ -8,7 +8,8 @@ import {
   addTeamMembersByIdsAction,
   createScheduleAction,
   createEscalationPolicyAction,
-  createAlertSourceAction
+  createAlertSourceAction,
+  createStatusPageAction
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { runOneShotSetupAction } from './actions/oneshot.js';
@@ -173,6 +174,17 @@ export async function createAlertSourceForTui(input) {
     return {
       ok: false,
       summary: error?.message || 'The wizard could not create the alert source.'
+    };
+  }
+}
+
+export async function createStatusPageForTui(input) {
+  try {
+    return await createStatusPageAction(input);
+  } catch (error) {
+    return {
+      ok: false,
+      summary: error?.message || 'The wizard could not create the status page.'
     };
   }
 }
