@@ -13,6 +13,7 @@ const RUNNING_LABEL = {
   schedule: 'Creating on-call schedule',
   'escalation-policy': 'Creating escalation policy',
   'alert-source': 'Adding alert source',
+  'status-page': 'Creating internal status page',
   'test-alert': 'Firing test alert',
   'test-incident': 'Opening test incident'
 };
@@ -22,6 +23,7 @@ const DONE_LABEL = {
   schedule: 'On-call schedule',
   'escalation-policy': 'Escalation policy',
   'alert-source': 'Alert source',
+  'status-page': 'Internal status page',
   'test-alert': 'Test alert',
   'test-incident': 'Test incident'
 };
@@ -151,6 +153,7 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
     },
     data.escalationPolicy && { label: 'Escalation', value: data.escalationPolicy.name },
     data.alertSource && { label: 'Alert source', value: data.alertSource.name },
+    data.statusPage && { label: 'Status page', value: `${data.statusPage.title} (internal)` },
     data.alert && { label: 'Test alert', value: data.alert.summary },
     data.incident && { label: 'Test incident', value: data.incident.title }
   ].filter(Boolean);

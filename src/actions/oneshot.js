@@ -5,6 +5,7 @@ import {
   createAlertSourceAction,
   createEscalationPolicyAction,
   createScheduleAction,
+  createStatusPageAction,
   createTeamAction
 } from './setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './testing.js';
@@ -74,6 +75,7 @@ export async function runOneShotSetupAction({
     schedule: null,
     escalationPolicy: null,
     alertSource: null,
+    statusPage: null,
     alert: null,
     incident: null,
     steps
@@ -162,7 +164,20 @@ export async function runOneShotSetupAction({
     }
   }
 
-  // 5. Test alert — the "see an alert" payoff, and the thing that actually
+  // 5. Internal status page — a place to broadcast status to the org. It's
+  // independent of the team, so it runs whether or not a team was set up.
+  const statusPage = await run('status-page', () =>
+    createStatusPageAction({ title: `${teamLabel} Status`, isPublic: false })
+  );
+  if (statusPage) {
+    data.statusPage = {
+      id: statusPage.data.id,
+      title: statusPage.data.title,
+      slug: statusPage.data.slug
+    };
+  }
+
+  // 6. Test alert — the "see an alert" payoff, and the thing that actually
   // pages you. When we have an escalation policy, trigger the alert against it
   // (urgency high) so it escalates to the on-call person and rings their phone.
   const groupIds = teamId ? [teamId] : [];
@@ -190,7 +205,7 @@ export async function runOneShotSetupAction({
   );
   if (alert) data.alert = { id: alert.data.id, summary: alertSummary, paged: Boolean(alert.data.paged) };
 
-  // 6. Test incident — the "see an incident" payoff. Attach a severity when the
+  // 7. Test incident — the "see an incident" payoff. Attach a severity when the
   // workspace exposes one (some workspaces require it).
   let severityId = null;
   try {

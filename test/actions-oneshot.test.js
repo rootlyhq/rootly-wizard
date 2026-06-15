@@ -45,6 +45,7 @@ test('runOneShotSetupAction runs the whole chain and ends with an alert + incide
     if (req.href.includes('/escalation_levels') && req.method === 'POST') return { body: { data: { id: 'lvl1' } } };
     if (req.href.endsWith('/v1/alert_urgencies')) return { body: { data: [{ id: 'urg-high', attributes: { name: 'High' } }] } };
     if (req.href.endsWith('/v1/alert_sources') && req.method === 'POST') return { body: { data: { id: 'as1', attributes: { webhook_endpoint: 'https://hook' } } } };
+    if (req.href.endsWith('/v1/status-pages') && req.method === 'POST') return { body: { data: { id: 'sp1', attributes: { slug: 'incident-response-status' } } } };
     if (req.href.endsWith('/v1/alerts') && req.method === 'POST') return { body: { data: { id: 'al1' } } };
     if (req.href.endsWith('/v1/severities')) return { body: { data: [{ id: 'sev1' }] } };
     if (req.href.endsWith('/v1/incidents') && req.method === 'POST') return { body: { data: { id: 'inc1', attributes: { slack_channel_url: 'https://slack/inc1' } } } };
@@ -58,10 +59,15 @@ test('runOneShotSetupAction runs the whole chain and ends with an alert + incide
   assert.equal(statusOf(result, 'schedule'), 'ok');
   assert.equal(statusOf(result, 'escalation-policy'), 'ok');
   assert.equal(statusOf(result, 'alert-source'), 'ok');
+  assert.equal(statusOf(result, 'status-page'), 'ok');
   assert.equal(statusOf(result, 'test-alert'), 'ok');
   assert.equal(statusOf(result, 'test-incident'), 'ok');
   assert.equal(result.data.incident.id, 'inc1');
   assert.equal(result.data.incident.slackChannelUrl, 'https://slack/inc1');
+  assert.equal(result.data.statusPage.id, 'sp1');
+  assert.equal(result.data.statusPage.slug, 'incident-response-status');
+  const statusPage = calls.find((c) => c.href.endsWith('/v1/status-pages') && c.method === 'POST');
+  assert.equal(statusPage.body.data.attributes.public, false);
   assert.deepEqual(result.data.blocked, []);
   assert.equal(result.data.note, null);
 
