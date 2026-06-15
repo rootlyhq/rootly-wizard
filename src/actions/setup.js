@@ -362,7 +362,8 @@ export async function createStatusPageAction({ title, isPublic = false } = {}) {
       id: payload?.data?.id || null,
       title: clean,
       public: Boolean(attributes.public),
-      url: attributes.url || attributes.public_url || attributes.slug || null
+      slug: attributes.slug || null,
+      url: attributes.url || attributes.public_url || null
     }
   };
 }

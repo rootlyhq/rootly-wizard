@@ -54,9 +54,9 @@ const CLEAR_SCROLLBACK = '\u001b[3J';
 const CURSOR_HOME = '\u001b[H';
 
 const CEO_CAL_URL = 'https://cal.link/jj';
-const SIGNUP_URL = process.env.ROOTLY_APP_URL?.trim()
-  ? `${process.env.ROOTLY_APP_URL.trim().replace(/\/$/, '')}/users/sign_up`
-  : 'https://rootly.com/users/sign_up';
+const APP_BASE_URL = (process.env.ROOTLY_APP_URL?.trim().replace(/\/$/, '')) || 'https://rootly.com';
+const SIGNUP_URL = `${APP_BASE_URL}/users/sign_up`;
+const STATUS_PAGES_URL = `${APP_BASE_URL}/account/status-pages`;
 
 function enterAltScreen() {
   if (!process.stdout.isTTY) return;
@@ -1013,7 +1013,10 @@ function InkWizardApp({ onExit }) {
             ? [
                 `Title: ${result.data?.title || value}`,
                 'Visibility: internal',
-                result.data?.id ? `Status page ID: ${result.data.id}` : 'Status page created',
+                result.data?.slug
+                  ? `View it: ${STATUS_PAGES_URL}/${result.data.slug}/private`
+                  : `Find it under Status Pages: ${STATUS_PAGES_URL}`,
+                '',
                 'Manage and publish it from the Rootly web app.'
               ]
             : [result.summary],
