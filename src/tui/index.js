@@ -234,6 +234,7 @@ function InkWizardApp({ onExit }) {
       lines: hasAuth
         ? [
             authContext?.label || 'A Rootly sign-in is already stored on this machine.',
+            '',
             'Keep it, or sign in another way.'
           ]
         : [
@@ -353,9 +354,11 @@ function InkWizardApp({ onExit }) {
       title: 'Auth needs attention',
       lines: [
         authRecovery?.label || 'A stored Rootly sign-in was found.',
+        '',
         authRecovery?.isBrowserSession
           ? 'Browser sign-in completed, but this OAuth session cannot read the workspace setup APIs yet.'
           : 'The stored sign-in could not read this Rootly workspace.',
+        '',
         authRecovery?.isBrowserSession
           ? 'Sign in with an API token for now, or retry browser sign-in after Rootly grants workspace API access.'
           : 'Sign in again to continue.'
@@ -770,11 +773,14 @@ function InkWizardApp({ onExit }) {
     const lines = hasPhone
       ? [
           'A test alert pages whoever is on call.',
+          '',
           `Your phone number is on file: ${userPhone?.phone || 'added'}.`,
+          '',
           'Connect Slack too if you like, then continue.'
         ]
       : [
           'A test alert and incident only reach you if you have somewhere to be notified.',
+          '',
           'Connect Slack and/or add a phone number, then continue. You can also skip and do this later.'
         ];
 
@@ -932,6 +938,7 @@ function InkWizardApp({ onExit }) {
       title: 'Nothing to do here',
       lines: [
         'There is no recommended action to run right now.',
+        '',
         'Use the menu to inspect your workspace, run setup, or connect integrations.'
       ],
       options: [
