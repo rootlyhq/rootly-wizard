@@ -263,13 +263,16 @@ function InkWizardApp({ onExit }) {
       onSubmit: async (value) => {
         setLoading(true);
         const result = await authenticateWithApiTokenForTui(value);
-        setLoading(false);
         if (result.ok) {
           setAuthContext(null);
           clearWorkspaceCache();
+          // Brief beat so the "signing in" state is visible before the menu.
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          setLoading(false);
           setScreen('menu');
           return;
         }
+        setLoading(false);
         setResultScreen({
           title: 'Auth failed',
           lines: [result.summary],
