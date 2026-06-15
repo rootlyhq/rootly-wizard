@@ -1,5 +1,27 @@
 import { loadApiClient, extractUserId } from '../runtime.js';
 
+// Returns the signed-in user's existing phone number (if any) for display.
+export async function getCurrentUserPhoneAction() {
+  const api = await loadApiClient();
+  const me = await api.getCurrentUser();
+  const userId = extractUserId(me);
+  if (!userId) {
+    return { ok: true, data: { hasPhone: false, phone: null } };
+  }
+  let phones = [];
+  try {
+    const payload = await api.getUserPhoneNumbers(userId);
+    phones = payload?.data || [];
+  } catch {
+    // best-effort; treat as no phone on error.
+  }
+  const primary = phones.find((p) => p.attributes?.primary) || phones[0] || null;
+  return {
+    ok: true,
+    data: { hasPhone: phones.length > 0, phone: primary?.attributes?.phone || null }
+  };
+}
+
 function formatError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
 }

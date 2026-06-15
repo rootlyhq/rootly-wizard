@@ -15,7 +15,8 @@ import { runOneShotSetupAction } from './actions/oneshot.js';
 import {
   startPhoneVerificationAction,
   confirmPhoneVerificationAction,
-  resendPhoneVerificationAction
+  resendPhoneVerificationAction,
+  getCurrentUserPhoneAction
 } from './actions/phone.js';
 import { deleteToken } from './auth.js';
 import { startWebHandoffAction, openUrl } from './actions/integrations.js';
@@ -219,6 +220,15 @@ export async function openExternalUrlForTui(url) {
     return { ok: true, opened: Boolean(opened) };
   } catch {
     return { ok: false, opened: false };
+  }
+}
+
+export async function loadCurrentUserPhoneForTui() {
+  try {
+    const result = await getCurrentUserPhoneAction();
+    return result.ok ? result.data : null;
+  } catch {
+    return null;
   }
 }
 

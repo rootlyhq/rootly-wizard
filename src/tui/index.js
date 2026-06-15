@@ -36,6 +36,7 @@ import {
   runOneShotSetupForTui,
   startPhoneVerificationForTui,
   confirmPhoneVerificationForTui,
+  loadCurrentUserPhoneForTui,
   startWebHandoffForTui,
   openExternalUrlForTui,
   previewMcpForTui,
@@ -79,6 +80,7 @@ function InkWizardApp({ onExit }) {
   const [teamMembersData, setTeamMembersData] = useState(null);
   const [addableUsers, setAddableUsers] = useState(null);
   const [directoryUsers, setDirectoryUsers] = useState(null);
+  const [userPhone, setUserPhone] = useState(null);
   const [authRecovery, setAuthRecovery] = useState(null);
 
   useEffect(() => {
@@ -161,6 +163,20 @@ function InkWizardApp({ onExit }) {
       cancelled = true;
     };
   }, [screen]);
+
+  // Load the signed-in user's existing phone (for the pre-flight screen) so we
+  // can show it instead of offering to add one.
+  useEffect(() => {
+    if (screen !== 'one-shot-prereqs' || userPhone !== null) return undefined;
+    let cancelled = false;
+    void (async () => {
+      const info = await loadCurrentUserPhoneForTui();
+      if (!cancelled) setUserPhone(info || { hasPhone: false, phone: null });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [screen, userPhone]);
 
   const leave = () => {
     onExit?.();
@@ -720,15 +736,25 @@ function InkWizardApp({ onExit }) {
       setScreen('result');
     };
 
+    const hasPhone = Boolean(userPhone?.hasPhone);
+    const lines = hasPhone
+      ? [
+          'A test alert pages whoever is on call.',
+          `Your phone number is on file: ${userPhone?.phone || 'added'}.`,
+          'Connect Slack too if you like, then continue.'
+        ]
+      : [
+          'A test alert and incident only reach you if you have somewhere to be notified.',
+          'Connect Slack and/or add a phone number, then continue. You can also skip and do this later.'
+        ];
+
     return h(OptionScreen, {
       title: 'Before we set up',
-      lines: [
-        'A test alert and incident only reach you if you have somewhere to be notified.',
-        'Connect Slack and/or add a phone number, then continue. You can also skip and do this later.'
-      ],
+      lines,
       options: [
         { label: 'Connect Slack', value: 'slack' },
-        { label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' },
+        // Only offer to add a number when the user doesn't already have one.
+        ...(hasPhone ? [] : [{ label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' }]),
         { label: 'Continue to setup', value: 'continue' },
         { label: 'Back to menu', value: 'back' }
       ],
@@ -780,6 +806,7 @@ function InkWizardApp({ onExit }) {
         const result = await confirmPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId, code: value });
         setLoading(false);
         if (result.ok) {
+          setUserPhone(null); // refresh so the pre-flight shows the new number
           setResultScreen({
             title: 'Phone verified',
             lines: ['Your phone number is verified and ready for paging.'],

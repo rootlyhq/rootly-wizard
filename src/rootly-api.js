@@ -208,6 +208,10 @@ export class RootlyApiClient {
     });
   }
 
+  async getUserPhoneNumbers(userId) {
+    return this.request(`/v1/users/${userId}/phone_numbers`);
+  }
+
   async createUserPhoneNumber(userId, phone) {
     return this.request(`/v1/users/${userId}/phone_numbers`, {
       method: 'POST',
