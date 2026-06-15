@@ -653,10 +653,15 @@ function InkWizardApp({ onExit }) {
         'Want to talk through your setup? JJ, our CEO, would love to chat.'
       ],
       options: [
+        { label: 'Continue configuring the platform', value: 'configure' },
         { label: 'Chat with JJ', value: 'chat-ceo' },
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: async (option) => {
+        if (option.value === 'configure') {
+          setScreen('general-menu');
+          return;
+        }
         if (option.value === 'back') {
           setScreen('menu');
           return;
