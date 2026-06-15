@@ -19,12 +19,16 @@ function KeyHints({ items, keyColor = palette.brand }) {
 
 export function AppShell({ title, context = 'rootly.com', hints = HINTS.nav, keyColor = palette.brand, children }) {
   const { columns } = useWindowSize();
-  const width = Math.max(46, Math.min(82, (columns || 80) - 4));
+  const cols = columns || 80;
+  // Fit the terminal: shrink on narrow screens, cap on wide ones.
+  const width = Math.min(82, Math.max(24, cols - 4));
   const ruleWidth = Math.max(4, Math.min(title ? title.length : 0, width - 8));
 
   return h(
     Box,
-    { flexDirection: 'column', paddingX: 2, paddingTop: 1 },
+    // Full-width column, centered — so on a wide/enlarged terminal everything
+    // stays centered rather than pinned to the left.
+    { flexDirection: 'column', alignItems: 'center', width: cols, paddingTop: 1 },
     // Brand header
     h(
       Box,

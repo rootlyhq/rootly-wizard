@@ -266,8 +266,8 @@ function InkWizardApp({ onExit }) {
         if (result.ok) {
           setAuthContext(null);
           clearWorkspaceCache();
-          // Brief beat so the "signing in" state is visible before the menu.
-          await new Promise((resolve) => setTimeout(resolve, 900));
+          // False timeout so the sign-in loader is visible instead of flashing by.
+          await new Promise((resolve) => setTimeout(resolve, 1200));
           setLoading(false);
           setScreen('menu');
           return;
@@ -337,6 +337,12 @@ function InkWizardApp({ onExit }) {
   }
 
   if (loading) {
+    if (screen === 'auth-token') {
+      return h(LoadingScreen, {
+        title: 'Signing you in…',
+        detail: 'Verifying your token with Rootly.'
+      });
+    }
     return h(LoadingScreen, {
       title: screen === 'menu' ? 'Loading Rootly workspace…' : 'Loading Rootly data…',
       detail: authContext?.label || 'Checking your current sign-in and workspace state.'
