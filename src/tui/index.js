@@ -178,6 +178,21 @@ function InkWizardApp({ onExit }) {
     setAddableUsers(null);
   };
 
+  // Loading takes precedence over the current screen, so a loader shows even
+  // while we're still "on" the auth-token / data screens.
+  if (loading) {
+    if (screen === 'auth-token') {
+      return h(LoadingScreen, {
+        title: 'Signing you in…',
+        detail: 'Verifying your token with Rootly.'
+      });
+    }
+    return h(LoadingScreen, {
+      title: screen === 'menu' ? 'Loading Rootly workspace…' : 'Loading Rootly data…',
+      detail: authContext?.label || 'Checking your current sign-in and workspace state.'
+    });
+  }
+
   if (screen === 'welcome') {
     return h(WelcomeScreen, {
       lines: [
@@ -333,19 +348,6 @@ function InkWizardApp({ onExit }) {
       },
       onExit: leave,
       continueLabel: resultScreen.continueLabel || (resultScreen.next === 'menu' ? 'Continue' : 'Try again')
-    });
-  }
-
-  if (loading) {
-    if (screen === 'auth-token') {
-      return h(LoadingScreen, {
-        title: 'Signing you in…',
-        detail: 'Verifying your token with Rootly.'
-      });
-    }
-    return h(LoadingScreen, {
-      title: screen === 'menu' ? 'Loading Rootly workspace…' : 'Loading Rootly data…',
-      detail: authContext?.label || 'Checking your current sign-in and workspace state.'
     });
   }
 
