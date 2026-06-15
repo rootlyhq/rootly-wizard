@@ -267,7 +267,7 @@ function InkWizardApp({ onExit }) {
           setAuthContext(null);
           clearWorkspaceCache();
           // False timeout so the sign-in loader is visible instead of flashing by.
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+          await new Promise((resolve) => setTimeout(resolve, 4000));
           setLoading(false);
           setScreen('menu');
           return;
