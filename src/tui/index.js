@@ -723,7 +723,7 @@ function InkWizardApp({ onExit }) {
       ],
       options: [
         { label: 'Connect Slack', value: 'slack' },
-        { label: 'Add a phone number', value: 'phone' },
+        { label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' },
         { label: 'Continue to setup', value: 'continue' },
         { label: 'Back to menu', value: 'back' }
       ],
