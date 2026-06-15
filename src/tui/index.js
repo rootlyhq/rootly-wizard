@@ -270,6 +270,7 @@ function InkWizardApp({ onExit }) {
               opened?.opened
                 ? 'Opened the Rootly sign-up page in your browser.'
                 : 'Open this link to create your Rootly account:',
+              '',
               SIGNUP_URL,
               '',
               'Once your account is set up, come back and sign in with an API token.'
@@ -544,7 +545,9 @@ function InkWizardApp({ onExit }) {
             lines: result.ok
               ? [
                   'Slack still uses the Rootly web flow.',
+                  '',
                   result.data?.url ? `Opened: ${result.data.url}` : 'Open the Slack setup page in Rootly.',
+                  '',
                   'Finish connecting Slack in your browser, then choose Continue to refresh your workspace status.'
                 ]
               : [result.summary],
@@ -584,7 +587,8 @@ function InkWizardApp({ onExit }) {
           lines: result.ok
             ? [
                 `Opened ${option.value} in Rootly web.`,
-                result.data?.url || '',
+                ...(result.data?.url ? ['', result.data.url] : []),
+                '',
                 `Finish connecting ${option.value} in your browser, then choose Continue to refresh your workspace status.`
               ]
             : [result.summary],
@@ -716,6 +720,7 @@ function InkWizardApp({ onExit }) {
             result.opened
               ? "Opened JJ's calendar in your browser."
               : 'Open this link to book a time with JJ:',
+            '',
             CEO_CAL_URL
           ],
           next: 'menu'
@@ -754,8 +759,8 @@ function InkWizardApp({ onExit }) {
       setResultScreen({
         title,
         lines: result?.data?.opened
-          ? [`Opened ${where} in your browser.`, 'We’ll be here when you’re done.', url].filter(Boolean)
-          : ['Open this link to finish, then continue here:', url].filter(Boolean),
+          ? [`Opened ${where} in your browser.`, '', 'We’ll be here when you’re done.', ...(url ? ['', url] : [])]
+          : ['Open this link to finish, then continue here:', ...(url ? ['', url] : [])],
         next: 'one-shot-prereqs'
       });
       setScreen('result');
