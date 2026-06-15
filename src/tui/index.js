@@ -53,6 +53,9 @@ const CLEAR_SCROLLBACK = '\u001b[3J';
 const CURSOR_HOME = '\u001b[H';
 
 const CEO_CAL_URL = 'https://cal.link/jj';
+const SIGNUP_URL = process.env.ROOTLY_APP_URL?.trim()
+  ? `${process.env.ROOTLY_APP_URL.trim().replace(/\/$/, '')}/users/sign_up`
+  : 'https://rootly.com/users/sign_up';
 
 function enterAltScreen() {
   if (!process.stdout.isTTY) return;
@@ -242,6 +245,7 @@ function InkWizardApp({ onExit }) {
         ...(hasAuth ? [{ label: 'Keep current sign-in', value: 'keep' }] : []),
         { label: 'Browser sign-in', value: 'browser' },
         { label: 'API token', value: 'token' },
+        ...(hasAuth ? [] : [{ label: 'Create a Rootly account', value: 'signup' }]),
         { label: 'Exit', value: 'exit' }
       ],
       onSelect: async (option) => {
@@ -252,6 +256,27 @@ function InkWizardApp({ onExit }) {
         if (option.value === 'exit') {
           // Exit, with the option to keep or delete the stored sign-in.
           setScreen('exit-confirm');
+          return;
+        }
+        if (option.value === 'signup') {
+          // No headless signup API — hand off to the web (it's bot-protected and
+          // needs email confirmation). They come back and sign in after.
+          setLoading(true);
+          const opened = await openExternalUrlForTui(SIGNUP_URL);
+          setLoading(false);
+          setResultScreen({
+            title: 'Create a Rootly account',
+            lines: [
+              opened?.opened
+                ? 'Opened the Rootly sign-up page in your browser.'
+                : 'Open this link to create your Rootly account:',
+              SIGNUP_URL,
+              '',
+              'Once your account is set up, come back and sign in with an API token.'
+            ],
+            next: 'auth-method'
+          });
+          setScreen('result');
           return;
         }
         if (option.value === 'token') {
