@@ -3,22 +3,25 @@ import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
 // The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
-// pattern-matched to Unicode half-blocks (▀ ▄ █). Half-blocks are full-width and
-// tile cleanly, so the art holds up across fonts/line-heights. Regenerate with
-// `node scripts/generate-logo-art.mjs 20 10`.
+// pattern-matched to Unicode quadrant blocks (2x2 subpixels per cell). The 2x
+// horizontal resolution preserves all six leaflets — half-blocks merged the
+// center pair. Regenerate (quadrant variant) with the script in scripts/.
 const LOGO = [
-  '         ▄▄',
-  '         ██',
-  '    ███▄ ▀▀ ▄███',
-  '     ▀█▀    ▀█▀',
-  ' ▄▄█▄▄   ██   ▄▄█▄▄',
-  '  ▀██▀   ██   ▀██▀',
-  ' ▄▄▄     ▀▀     ▄▄▄',
+  '         ▟▙',
+  '        ▐██▌',
+  '   ▝██▙▖ ▜▛ ▗▟██',
+  '    ▝▜█▛    ▜█▛▘',
+  ' ▗▟█▙▖   ▟▙   ▗▟█▙▖',
+  '  ▀██▘  ▐██▌  ▀██▀',
+  ' ▄▄▄▖    ▀▀     ▄▄▖',
   '████████▄  ▄████████',
-  '      ▀▀████▀▀',
-  '        ▀██▀'
+  '      ▝▀████▀▘',
+  '        ▐██▌'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
+// Pad every line to the same width: rendered in a centered column, unequal-length
+// lines would each be centered on their own width and drift horizontally.
+const LOGO_LINES = LOGO.map((line) => line.padEnd(LOGO_WIDTH));
 
 // "Rootly Wizard" on one line in a rounded block font.
 const GLYPHS = {
@@ -64,14 +67,24 @@ export function Banner() {
     return () => clearInterval(timer);
   }, []);
 
+  // Equal-width lines, each in its own Box, so the centered column lays the
+  // sprout out as one solid block (no per-line horizontal drift).
+  const sprout = h(
+    Box,
+    { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+    ...LOGO_LINES.map((line, row) =>
+      h(Box, { key: `logo-${row}` }, h(Text, { color: palette.brand }, line))
+    )
+  );
+
   // Compact fallback when the block wordmark would not fit: keep the sprout,
   // drop to a plain text wordmark.
   if ((columns || 80) < WIDTH + 12) {
     return h(
       Box,
       { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
-      ...LOGO.map((line, row) => h(Text, { key: `logo-${row}`, color: palette.brand }, line)),
-      h(Box, { marginTop: 1 }, h(Text, { color: palette.brand, bold: true }, '✦ Rootly Wizard'))
+      sprout,
+      h(Text, { color: palette.brand, bold: true }, '✦ Rootly Wizard')
     );
   }
 
@@ -92,12 +105,7 @@ export function Banner() {
   return h(
     Box,
     { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
-    // The sprout, sitting above the wordmark in brand purple.
-    h(
-      Box,
-      { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
-      ...LOGO.map((line, row) => h(Text, { key: `logo-${row}`, color: palette.brand }, line))
-    ),
+    sprout,
     ...WORDMARK.map((line, row) =>
       h(
         Box,
