@@ -6,6 +6,9 @@ import { palette, HINTS } from '../theme.js';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
+// Web base for building links to created resources (matches the rest of the app).
+const APP_BASE_URL = (process.env.ROOTLY_APP_URL?.trim().replace(/\/$/, '')) || 'https://rootly.com';
+
 // Label while a step is in flight vs. once it has settled.
 const RUNNING_LABEL = {
   team: 'Setting up team',
@@ -181,6 +184,9 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
       h(Box, { flexDirection: 'column' }, ...rows.map((row) => h(SummaryRow, { key: row.label, label: row.label, value: row.value }))),
       data.incident?.slackChannelUrl
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Incident channel: ${data.incident.slackChannelUrl}`))
+        : null,
+      data.statusPage?.slug
+        ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Status page: ${APP_BASE_URL}/account/status-pages/${data.statusPage.slug}/private`))
         : null,
       rows.length
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, 'Verify any of this in the Rootly web app.'))
