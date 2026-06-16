@@ -44,12 +44,16 @@ function applyEvent(prev, evt) {
   return prev.map((s) => (s.step === evt.step ? { ...s, status: evt.status, error: evt.error } : s));
 }
 
+// U+FE0E forces text (monochrome, single-width) presentation so the marks don't
+// render as wide emoji that swallow the following space.
+const TEXT_PRESENTATION = '︎';
+
 function ProgressRow({ entry, frame }) {
   const { step, status } = entry;
   const mark = status === 'running'
     ? SPINNER[frame % SPINNER.length]
-    : status === 'ok' || status === 'reused' ? '✓'
-      : status === 'blocked' ? '⚠' : '✗';
+    : status === 'ok' || status === 'reused' ? `✓${TEXT_PRESENTATION}`
+      : status === 'blocked' ? `⚠${TEXT_PRESENTATION}` : `✗${TEXT_PRESENTATION}`;
   const color = status === 'running' ? palette.brand
     : status === 'ok' || status === 'reused' ? palette.success
       : status === 'blocked' ? palette.warning : palette.danger;
@@ -60,8 +64,10 @@ function ProgressRow({ entry, frame }) {
   return h(
     Box,
     null,
-    h(Text, { color }, `${mark} `),
-    h(Text, { color: status === 'running' ? palette.text : palette.text }, label),
+    // Margin (a layout gap) rather than a string space, so the gap survives
+    // regardless of how wide the terminal renders the mark glyph.
+    h(Box, { marginRight: 1 }, h(Text, { color }, mark)),
+    h(Text, { color: palette.text }, label),
     suffix ? h(Text, { color: palette.muted }, suffix) : null
   );
 }
