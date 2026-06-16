@@ -1076,8 +1076,8 @@ function InkWizardApp({ onExit }) {
                 `Title: ${result.data?.title || value}`,
                 'Visibility: internal',
                 result.data?.slug
-                  ? `View it: ${hyperlink(`${STATUS_PAGES_URL}/${result.data.slug}/private`)}`
-                  : `Find it under Status Pages: ${hyperlink(STATUS_PAGES_URL)}`,
+                  ? hyperlink(`${STATUS_PAGES_URL}/${result.data.slug}/private`, '↗ Open the status page')
+                  : hyperlink(STATUS_PAGES_URL, '↗ Open Status Pages'),
                 '',
                 'Manage and publish it from the Rootly web app.'
               ]

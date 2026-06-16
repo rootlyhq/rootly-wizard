@@ -171,7 +171,9 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Incident channel: ${data.incident.slackChannelUrl}`))
         : null,
       data.statusPage?.slug
-        ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Status page: ${hyperlink(`${APP_BASE_URL}/account/status-pages/${data.statusPage.slug}/private`)}`))
+        // Short, single-line label so the hyperlink never wraps (a wrapped OSC 8
+        // link isn't clickable). ⌘-click (iTerm2/VS Code) opens it.
+        ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, hyperlink(`${APP_BASE_URL}/account/status-pages/${data.statusPage.slug}/private`, '↗ Open the status page')))
         : null,
       rows.length
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, 'Verify any of this in the Rootly web app.'))
