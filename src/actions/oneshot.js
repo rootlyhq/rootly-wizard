@@ -167,7 +167,11 @@ export async function runOneShotSetupAction({
   // 5. Internal status page — a place to broadcast status to the org. It's
   // independent of the team, so it runs whether or not a team was set up.
   const statusPage = await run('status-page', () =>
-    createStatusPageAction({ title: `${teamLabel} Status`, isPublic: false })
+    createStatusPageAction({
+      title: `${teamLabel} Status`,
+      description: `Internal status page for ${teamLabel}, created by the Rootly setup wizard.`,
+      isPublic: false
+    })
   );
   if (statusPage) {
     data.statusPage = {

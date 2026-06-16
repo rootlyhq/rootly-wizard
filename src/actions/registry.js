@@ -151,6 +151,7 @@ export const ACTIONS = {
     description: 'Create a status page (internal by default).',
     input: {
       title: { type: 'string', required: true, description: 'Status page title.' },
+      description: { type: 'string', description: 'Internal description shown to Rootly admins. Defaults to a wizard note.' },
       isPublic: { type: 'boolean', description: 'Make it public (default false = internal).' }
     },
     handler: createStatusPageAction

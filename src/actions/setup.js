@@ -341,15 +341,21 @@ export async function createAlertSourceAction({ teamId, name = 'Generic webhook'
   };
 }
 
-export async function createStatusPageAction({ title, isPublic = false } = {}) {
+export async function createStatusPageAction({ title, description, isPublic = false } = {}) {
   const clean = String(title || '').trim();
   if (!clean) {
     return { ok: false, summary: 'A status page title is required.' };
   }
 
+  // The description is internal to Rootly — it tells other admins what the page
+  // is for. Default to a clear note when the caller doesn't supply one.
+  const cleanDescription = String(description ?? '').trim()
+    || 'Created by the Rootly setup wizard.';
+
   const api = await loadApiClient();
   const payload = await api.createStatusPage({
     title: clean,
+    description: cleanDescription,
     public: Boolean(isPublic),
     enabled: true
   });
