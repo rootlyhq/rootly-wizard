@@ -783,6 +783,15 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-prereqs') {
+    // Wait for the phone lookup before rendering, so the screen doesn't flash
+    // the "no phone" layout and then flip to "phone on file" when it resolves.
+    if (userPhone === null) {
+      return h(LoadingScreen, {
+        title: 'Getting things ready…',
+        detail: 'Checking how you’ll be notified.'
+      });
+    }
+
     const openHandoff = async (kind, title, where) => {
       setLoading(true);
       const result = await startWebHandoffForTui({ kind, open: true });
