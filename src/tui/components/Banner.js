@@ -2,23 +2,19 @@ import { createElement as h, useEffect, useState } from 'react';
 import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
-// The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
-// pattern-matched to Unicode half-blocks (▀ ▄ █). Half-blocks have no partial-
-// cell corners, so the art stays free of the floating specks quadrant blocks
-// produced; rendered wide at 28x11 so the six leaflets separate cleanly without
-// merging. Regenerate with `node scripts/generate-logo-art.mjs 28 11`.
+// The Rootly sprout, rendered from assets/rootly-logo-glyph.png with chafa's
+// braille symbols (2x4 dots per cell). Braille packs ~4x the detail of half-
+// blocks, so the leaves read as smooth rounded shapes instead of chunky bars in
+// a compact footprint. Regenerate with:
+//   chafa --symbols braille --size 26x13 --fg-only assets/rootly-logo-glyph-purple.png
 const LOGO = [
-  '             ▄▄',
-  '            ████',
-  '     ▄██▄▄  ▀██▀  ▄▄██▄',
-  '      ▀████      ████▀',
-  '   ▄▄▄▄ ▀▀   ▄▄   ▀▀ ▄▄▄▄',
-  '  ▀█████    ████    █████▀',
-  '    ▀▀▀     ████     ▀▀▀',
-  '▄▄▄▄▄▄▄▄▄▄         ▄▄▄▄▄▄▄▄▄',
-  '▀███████████▄  ▄███████████▀',
-  '          ▀██████▀',
-  '            ████'
+  '⠀⠀⠀⠀⠀⠀⠀⣴⣧',
+  '⠀⠀⠀⣦⣦⣄⠀⠿⠿⠀⣠⣴⣴',
+  '⠀⠀⢀⠈⠛⠟⠀⢀⡀⠀⠻⠛⠁⡀',
+  '⠀⠹⢿⣿⡆⠀⠀⣾⣿⠀⠀⠰⣿⡿⠟',
+  '⣀⣀⣀⣀⣀⠀⠀⠙⠋⠀⢀⣀⣀⣀⣀⣀',
+  '⠛⠛⠛⠛⠛⠿⣷⣦⣴⣾⠿⠛⠛⠛⠛⠛',
+  '⠀⠀⠀⠀⠀⠀⠘⣿⣿⠃'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // Pad every line to the same width: rendered in a centered column, unequal-length
