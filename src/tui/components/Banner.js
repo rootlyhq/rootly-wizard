@@ -23,47 +23,20 @@ const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // lines would each be centered on their own width and drift horizontally.
 const LOGO_LINES = LOGO.map((line) => line.padEnd(LOGO_WIDTH));
 
-// "Rootly Wizard" on one line in a rounded block font.
-const GLYPHS = {
-  R: ['█▀▀▄', '█  █', '█▄▄▀', '█ ▀▄', '█  █'],
-  W: ['█   █', '█   █', '█ █ █', '██ ██', '█   █'],
-  o: ['    ', '▄▀▀▄', '█  █', '█  █', '▀▄▄▀'],
-  t: [' █ ', '███', ' █ ', ' █ ', ' ▀▄'],
-  l: ['█', '█', '█', '█', '█'],
-  y: ['    ', '█  █', '█  █', '▀▄▄█', '▄▄▄▀'],
-  i: ['█', ' ', '█', '█', '█'],
-  z: ['    ', '████', '  ▄▀', '▄▀  ', '████'],
-  a: ['    ', '▄▀▀▄', ' ▄▄█', '█  █', '▀▄▄▀'],
-  d: ['   █', '   █', '▄▀▀█', '█  █', '▀▄▄▀'],
-  r: ['   ', '█▀▀', '█  ', '█  ', '█  '],
-};
-const ROWS = 5;
-
-function buildWord(word) {
-  const raw = Array.from({ length: ROWS }, (_, row) =>
-    word.split('').map((letter) => GLYPHS[letter][row]).join(' ')
-  );
-  const width = Math.max(...raw.map((line) => line.length));
-  return raw.map((line) => line.padEnd(width));
-}
-
-const ROOTLY = buildWord('Rootly');
-const WIZARD = buildWord('Wizard');
-const RAW = ROOTLY.map((line, row) => `${line}   ${WIZARD[row]}`);
-const WIDTH = Math.max(...RAW.map((line) => line.length));
-const WORDMARK = RAW.map((line) => line.padEnd(WIDTH));
+// Small single-line wordmark (normal terminal text), shimmered to brand purple.
+const WORDMARK = 'Rootly Wizard';
 
 // Bright-to-brand trail behind the reveal crest (white → brand purple, via
 // the P200/P300/P500 brand tints).
 const CREST = ['#FFFFFF', '#E0DAFB', '#C9BEF7', '#9D86F0', palette.brand];
-const REVEAL_STEP = 3;
+const REVEAL_STEP = 1;
 
 export function Banner() {
   const { columns } = useWindowSize();
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => setFrame((f) => f + 1), 38);
+    const timer = setInterval(() => setFrame((f) => f + 1), 70);
     return () => clearInterval(timer);
   }, []);
 
@@ -77,20 +50,18 @@ export function Banner() {
     )
   );
 
-  // Compact fallback when the block wordmark would not fit: keep the sprout,
-  // drop to a plain text wordmark.
-  if ((columns || 80) < WIDTH + 12) {
+  // Sprout too wide for this terminal: just the small wordmark with a sparkle.
+  if ((columns || 80) < LOGO_WIDTH + 4) {
     return h(
       Box,
-      { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
-      sprout,
+      { marginBottom: 1 },
       h(Text, { color: palette.brand, bold: true }, '✦ Rootly Wizard')
     );
   }
 
   const ramp = shimmerRamp;
   const reveal = frame * REVEAL_STEP;
-  const settled = reveal > WIDTH + CREST.length;
+  const settled = reveal > WORDMARK.length + CREST.length;
 
   const colorFor = (col) => {
     if (settled) {
@@ -106,17 +77,15 @@ export function Banner() {
     Box,
     { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
     sprout,
-    ...WORDMARK.map((line, row) =>
-      h(
-        Box,
-        { key: `row-${row}` },
-        ...line.split('').map((char, col) => {
-          if (char === ' ' || (!settled && col > reveal)) {
-            return h(Text, { key: `c-${col}` }, ' ');
-          }
-          return h(Text, { key: `c-${col}`, color: colorFor(col) }, char);
-        })
-      )
+    h(
+      Box,
+      null,
+      ...WORDMARK.split('').map((char, col) => {
+        if (char === ' ' || (!settled && col > reveal)) {
+          return h(Text, { key: `c-${col}` }, ' ');
+        }
+        return h(Text, { key: `c-${col}`, bold: true, color: colorFor(col) }, char);
+      })
     )
   );
 }
