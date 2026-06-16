@@ -2,19 +2,27 @@ import { createElement as h, useEffect, useState } from 'react';
 import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
-// The Rootly sprout, rendered from assets/rootly-logo-glyph.png with chafa's
-// braille symbols (2x4 dots per cell). Braille packs ~4x the detail of half-
-// blocks, so the leaves read as smooth rounded shapes instead of chunky bars in
-// a compact footprint. Regenerate with:
-//   chafa --symbols braille --size 26x13 --fg-only assets/rootly-logo-glyph-purple.png
+// The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and pattern-
+// matched to Unicode half-blocks (▀ ▄ █) at high resolution (38x15), with a
+// denoise pass to drop 1px tip specks. Higher resolution keeps the fill solid
+// while smoothing the leaf edges (vs. a chunky low-res render). Regenerate with
+// `node scripts/generate-logo-art.mjs 38 15`.
 const LOGO = [
-  '⠀⠀⠀⠀⠀⠀⠀⣴⣧',
-  '⠀⠀⠀⣦⣦⣄⠀⠿⠿⠀⣠⣴⣴',
-  '⠀⠀⢀⠈⠛⠟⠀⢀⡀⠀⠻⠛⠁⡀',
-  '⠀⠹⢿⣿⡆⠀⠀⣾⣿⠀⠀⠰⣿⡿⠟',
-  '⣀⣀⣀⣀⣀⠀⠀⠙⠋⠀⢀⣀⣀⣀⣀⣀',
-  '⠛⠛⠛⠛⠛⠿⣷⣦⣴⣾⠿⠛⠛⠛⠛⠛',
-  '⠀⠀⠀⠀⠀⠀⠘⣿⣿⠃'
+  '                  ▄▄',
+  '                 ████',
+  '                ██████',
+  '       █████▄▄   ████   ▄▄█████',
+  '        ███████        ██████▀',
+  '         ▀▀██▀▀        ▀███▀▀',
+  '   ▄▄▄▄▄▄▄       ▄██▄       ▄▄▄▄▄▄▄',
+  '   ▀███████     ▄████▄     ███████▀',
+  '     ▀▀██▀▀     ██████     ▀▀██▀▀',
+  '                 ▀██▀',
+  '██████████▄▄▄▄          ▄▄▄▄█████████▄',
+  '████████████████▄▄  ▄▄████████████████',
+  '            ▀▀██████████▀▀',
+  '               ▀██████▀',
+  '                ▀████▀'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // Pad every line to the same width: rendered in a centered column, unequal-length

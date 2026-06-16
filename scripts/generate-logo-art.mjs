@@ -25,6 +25,21 @@ export function blockify(cols, rows, src = SRC) {
     const g = /gray\((\d+)/.exec(line);
     ink[y][x] = (/#000000|black/i.test(line) || (g && +g[1] < 128)) ? 1 : 0;
   }
+
+  // Denoise: drop ink pixels with fewer than 2 of 8 neighbors. Removes the 1px
+  // tip fragments that otherwise read as stray specks in the art.
+  const keep = ink.map((row) => row.slice());
+  const NB = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!ink[y][x]) continue;
+      let n = 0;
+      for (const [dy, dx] of NB) n += ink[y + dy]?.[x + dx] || 0;
+      if (n < 2) keep[y][x] = 0;
+    }
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) ink[y][x] = keep[y][x];
+
   const lines = [];
   for (let r = 0; r < rows; r++) {
     let s = '';
