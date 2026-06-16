@@ -1,14 +1,15 @@
 // Rasterize the Rootly sprout glyph and pattern-match each character cell to a
-// Unicode quadrant block (2x2 subpixels/cell). Run:
+// Unicode HALF-block (▀ ▄ █): 1x2 subpixels/cell, full-width so the art tiles
+// cleanly without floating partial-cell specks. Run:
 //   node scripts/generate-logo-art.mjs [cols] [rows]
 // Prints the block art; copy it into src/tui/components/Banner.js.
 import { execSync } from 'node:child_process';
 
-const QUAD = [' ','▗','▖','▄','▝','▐','▞','▟','▘','▚','▌','▙','▀','▜','▛','█'];
+const HALF = [' ', '▄', '▀', '█']; // (top<<1)|bottom
 const SRC = 'assets/rootly-logo-glyph.png';
 
 export function blockify(cols, rows, src = SRC) {
-  const W = cols * 2, H = rows * 2;
+  const W = cols, H = rows * 2; // 1 horizontal, 2 vertical subpixels per cell
   // -trim removes the transparent padding so the glyph fills the grid.
   const out = execSync(
     `magick "${src}" -background white -alpha remove -alpha off -trim +repage ` +
@@ -28,9 +29,8 @@ export function blockify(cols, rows, src = SRC) {
   for (let r = 0; r < rows; r++) {
     let s = '';
     for (let c = 0; c < cols; c++) {
-      const tl = ink[r*2][c*2], tr = ink[r*2][c*2+1];
-      const bl = ink[r*2+1][c*2], br = ink[r*2+1][c*2+1];
-      s += QUAD[(tl<<3)|(tr<<2)|(bl<<1)|br];
+      const top = ink[r * 2][c], bottom = ink[r * 2 + 1][c];
+      s += HALF[(top << 1) | bottom];
     }
     lines.push(s.replace(/\s+$/, ''));
   }
@@ -38,8 +38,9 @@ export function blockify(cols, rows, src = SRC) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const cols = +(process.argv[2] || 22);
+  // Cells are ~1:2 (w:h); cols ≈ 2*rows keeps the square glyph square.
   const rows = +(process.argv[3] || 11);
+  const cols = +(process.argv[2] || rows * 2);
   console.log(JSON.stringify(blockify(cols, rows), null, 2));
   console.log('\npreview:\n' + blockify(cols, rows).join('\n'));
 }
