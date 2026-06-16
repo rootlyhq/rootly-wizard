@@ -5,19 +5,18 @@ import { palette, shimmerRamp } from '../theme.js';
 // The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
 // pattern-matched to Unicode quadrant blocks (2x2 subpixels per cell). The 2x
 // horizontal resolution preserves all six leaflets — half-blocks merged the
-// center pair. Rendered wide (28x10) to match the real mark's aspect, which is
+// center pair. Rendered wide (24x9) to match the real mark's aspect, which is
 // wider than tall. Regenerate (quadrant variant) with the script in scripts/.
 const LOGO = [
-  '            ▗▟▙▖',
-  '            ████',
-  '     ▜███▙▖ ▝▜▛▘ ▗▟███▌',
-  '      ▝▜██▛      ▜██▛▘',
-  '  ▄▟██▄▄    ▗██▖    ▄▄██▙▄',
-  '   ▀▜██▛    ████    ▜██▛▀',
-  ' ▗▄▄▄▄      ▝▀▀▘      ▗▄▄▄',
-  '▜██████████▄▄  ▄▄██████████▛',
-  '         ▀▀██████▀▀',
-  '           ▝████'
+  '           ▟▙',
+  '          ▐██▌',
+  '    ▝███▙▖ ▀▀ ▗▟███▘',
+  '    ▖ ▀▀▀  ▗▖  ▀▀▀ ▗',
+  ' ▝▜███▙   ▐██▌   ▟███▛▘',
+  '    ▝▀    ▝██▘    ▀▘',
+  '███████▙▄▄    ▄▄▟███████',
+  '▝     ▝▀▀██▙▟██▀▀▘     ▘',
+  '          ▜██▛'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // Pad every line to the same width: rendered in a centered column, unequal-length
