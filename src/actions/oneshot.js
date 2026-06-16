@@ -128,8 +128,11 @@ export async function runOneShotSetupAction({
       await run('members', () => addTeamMembersByIdsAction({ teamId, userIds: chosenIds }));
     }
 
+    // Reuse existing resources by name so a re-run doesn't fail on "already
+    // exists" — which previously broke the paging chain (no escalation policy →
+    // the test alert reached no one).
     const schedule = await run('schedule', () =>
-      createScheduleAction({ teamId, name: `${teamLabel} On-Call`, handoffTime, memberIds: rotationIds })
+      createScheduleAction({ teamId, name: `${teamLabel} On-Call`, handoffTime, memberIds: rotationIds, reuseByName: true })
     );
     if (schedule) {
       data.schedule = {
@@ -147,13 +150,14 @@ export async function runOneShotSetupAction({
         repeatCount: 1,
         createDefaultPath: Boolean(data.schedule),
         // Add a level paging the on-call schedule so a triggered alert reaches a person.
-        scheduleId: data.schedule?.id || null
+        scheduleId: data.schedule?.id || null,
+        reuseByName: true
       })
     );
     if (escalation) data.escalationPolicy = { id: escalation.data.id, name: `${teamLabel} Escalation` };
 
     const source = await run('alert-source', () =>
-      createAlertSourceAction({ teamId, name: `${teamLabel} Webhook` })
+      createAlertSourceAction({ teamId, name: `${teamLabel} Webhook`, reuseByName: true })
     );
     if (source) {
       data.alertSource = {

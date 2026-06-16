@@ -181,8 +181,24 @@ export async function addTeamMembersByIdsAction({ teamId, userIds = [] } = {}) {
   };
 }
 
-export async function createScheduleAction({ teamId, name, handoffTime = '09:00', memberIds = [] } = {}) {
+export async function createScheduleAction({ teamId, name, handoffTime = '09:00', memberIds = [], reuseByName = false } = {}) {
   const api = await loadApiClient();
+
+  if (reuseByName) {
+    try {
+      const existing = findByName((await api.listSchedules())?.data, name, teamId, 'owner_group_ids');
+      if (existing) {
+        return {
+          ok: true,
+          summary: `Reused existing schedule ${name}.`,
+          data: { teamId, scheduleId: existing.id, name, handoffTime, rotationCreated: false, reused: true }
+        };
+      }
+    } catch {
+      // If the lookup fails, fall through and create a fresh one.
+    }
+  }
+
   const currentUser = await api.getCurrentUser();
   const currentUserId = extractUserId(currentUser);
 

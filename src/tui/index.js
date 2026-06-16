@@ -1,7 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
 import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
-import { friendlyError, formatPhone, hyperlink } from '../format.js';
+import { friendlyError, formatPhone } from '../format.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
@@ -1076,8 +1076,8 @@ function InkWizardApp({ onExit }) {
                 `Title: ${result.data?.title || value}`,
                 'Visibility: internal',
                 result.data?.slug
-                  ? hyperlink(`${STATUS_PAGES_URL}/${result.data.slug}/private`, '↗ Open the status page')
-                  : hyperlink(STATUS_PAGES_URL, '↗ Open Status Pages'),
+                  ? `View it: ${STATUS_PAGES_URL}/${result.data.slug}/private`
+                  : `Find it under Status Pages: ${STATUS_PAGES_URL}`,
                 '',
                 'Manage and publish it from the Rootly web app.'
               ]
@@ -1373,12 +1373,21 @@ function InkWizardApp({ onExit }) {
         setLoading(true);
         const result = await createTestAlertForTui({
           summary: value || 'Rootly Wizard test alert',
-          groupIds: selectedTeam?.id ? [selectedTeam.id] : []
+          groupIds: selectedTeam?.id ? [selectedTeam.id] : [],
+          // Page the team's on-call escalation policy so the alert actually rings.
+          page: true
         });
         setLoading(false);
         setResultScreen({
           title: result.ok ? 'Test alert sent' : 'Test alert needs attention',
-          lines: result.ok ? [`Alert: ${result.data?.summary || value}`] : [friendlyError(result.summary)],
+          lines: result.ok
+            ? [
+                `Alert: ${result.data?.summary || value}`,
+                result.data?.paged
+                  ? 'Paging the on-call person now — watch for a call or text.'
+                  : 'Heads up: no escalation policy found for this team, so it won’t page anyone.'
+              ]
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');

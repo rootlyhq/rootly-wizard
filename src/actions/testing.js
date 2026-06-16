@@ -15,7 +15,11 @@ export async function createTestAlertAction({
   notificationTargetType = null,
   notificationTargetId = null,
   urgencyId = null,
-  source = 'api'
+  source = 'api',
+  // When true (and no explicit target is given), resolve the team's escalation
+  // policy + High urgency and page it — so a standalone test alert reaches the
+  // on-call person, like Quick start does.
+  page = false
 } = {}) {
   const api = await loadApiClient();
   const attributes = {
@@ -27,6 +31,27 @@ export async function createTestAlertAction({
   const cleanedGroupIds = cleanIds(groupIds);
   const cleanedServiceIds = cleanIds(serviceIds);
   const cleanedEnvironmentIds = cleanIds(environmentIds);
+
+  if (page && !notificationTargetType && cleanedGroupIds.length) {
+    try {
+      const policies = (await api.listEscalationPolicies())?.data || [];
+      const teamId = cleanedGroupIds[0];
+      const policy = policies.find((p) => {
+        const g = p?.attributes?.group_ids;
+        return Array.isArray(g) && g.map(String).includes(teamId);
+      }) || (policies.length === 1 ? policies[0] : null);
+      if (policy) {
+        notificationTargetType = 'EscalationPolicy';
+        notificationTargetId = policy.id;
+        if (!urgencyId) {
+          const urgencies = (await api.listAlertUrgencies())?.data || [];
+          urgencyId = (urgencies.find((u) => /high/i.test(u?.attributes?.name || '')) || urgencies[0])?.id || null;
+        }
+      }
+    } catch {
+      // best-effort; fall back to a passive (non-paging) alert.
+    }
+  }
 
   if (cleanedDescription) {
     attributes.description = cleanedDescription;
