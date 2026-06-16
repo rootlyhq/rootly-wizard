@@ -3,26 +3,19 @@ import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
 // The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and pattern-
-// matched to Unicode half-blocks (▀ ▄ █) at high resolution (38x15), with a
-// denoise pass to drop 1px tip specks. Higher resolution keeps the fill solid
-// while smoothing the leaf edges (vs. a chunky low-res render). Regenerate with
-// `node scripts/generate-logo-art.mjs 38 15`.
+// matched to Unicode half-blocks (▀ ▄ █) with a denoise pass to drop 1px tip
+// specks. Rendered at 19x8 — half the earlier 38x15 — to keep the banner compact
+// while still showing all six leaflets. Regenerate with
+// `node scripts/generate-logo-art.mjs 19 8`.
 const LOGO = [
-  '                  ▄▄',
-  '                 ████',
-  '                ██████',
-  '       █████▄▄   ████   ▄▄█████',
-  '        ███████        ██████▀',
-  '         ▀▀██▀▀        ▀███▀▀',
-  '   ▄▄▄▄▄▄▄       ▄██▄       ▄▄▄▄▄▄▄',
-  '   ▀███████     ▄████▄     ███████▀',
-  '     ▀▀██▀▀     ██████     ▀▀██▀▀',
-  '                 ▀██▀',
-  '██████████▄▄▄▄          ▄▄▄▄█████████▄',
-  '████████████████▄▄  ▄▄████████████████',
-  '            ▀▀██████████▀▀',
-  '               ▀██████▀',
-  '                ▀████▀'
+  '        ▄█▄',
+  '    ▄▄  ███  ▄▄',
+  '    ▀██  ▀  ██▀',
+  ' ▄▄▄▄    ▄    ▄▄▄▄',
+  '  ▀▀▀   ███   ▀▀▀',
+  '▄▄▄▄▄▄▄  ▀  ▄▄▄▄▄▄▄',
+  '▀▀▀▀▀▀▀██▄██▀▀▀▀▀▀▀',
+  '        ███'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // Pad every line to the same width: rendered in a centered column, unequal-length
