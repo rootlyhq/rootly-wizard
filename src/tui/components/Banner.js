@@ -22,8 +22,9 @@ const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // lines would each be centered on their own width and drift horizontally.
 const LOGO_LINES = LOGO.map((line) => line.padEnd(LOGO_WIDTH));
 
-// Small single-line wordmark (normal terminal text), shimmered to brand purple.
-const WORDMARK = 'Rootly Wizard';
+// Small single-line tagline under the sprout (the app name already lives in the
+// top-left header, so the hero says what the wizard does instead of repeating it).
+const TAGLINE = 'Your guided Rootly setup';
 
 // Bright-to-brand trail behind the reveal crest (white → brand purple, via
 // the P200/P300/P500 brand tints).
@@ -83,7 +84,7 @@ export function Banner() {
 
   const ramp = shimmerRamp;
   const reveal = frame * REVEAL_STEP;
-  const settled = reveal > WORDMARK.length + CREST.length;
+  const settled = reveal > TAGLINE.length + CREST.length;
 
   const colorFor = (col) => {
     if (settled) {
@@ -102,7 +103,7 @@ export function Banner() {
     h(
       Box,
       null,
-      ...WORDMARK.split('').map((char, col) => {
+      ...TAGLINE.split('').map((char, col) => {
         if (char === ' ' || (!settled && col > reveal)) {
           return h(Text, { key: `c-${col}` }, ' ');
         }
