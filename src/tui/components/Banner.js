@@ -2,6 +2,23 @@ import { createElement as h, useEffect, useState } from 'react';
 import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
+// The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
+// pattern-matched to Unicode quadrant blocks (2x2 subpixels per cell). Regenerate
+// with `node scripts/generate-logo-art.mjs 20 10`.
+const LOGO = [
+  '         ▟▙',
+  '        ▐██▌',
+  '   ▝██▙▖ ▜▛ ▗▟██',
+  '    ▝▜█▛    ▜█▛▘',
+  ' ▗▟█▙▖   ▟▙   ▗▟█▙▖',
+  '  ▀██▘  ▐██▌  ▀██▀',
+  ' ▄▄▄▖    ▀▀     ▄▄▖',
+  '████████▄  ▄████████',
+  '      ▝▀████▀▘',
+  '        ▐██▌'
+];
+const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
+
 // "Rootly Wizard" on one line in a rounded block font.
 const GLYPHS = {
   R: ['█▀▀▄', '█  █', '█▄▄▀', '█ ▀▄', '█  █'],
@@ -46,9 +63,15 @@ export function Banner() {
     return () => clearInterval(timer);
   }, []);
 
-  // Compact fallback when the block wordmark would not fit.
+  // Compact fallback when the block wordmark would not fit: keep the sprout,
+  // drop to a plain text wordmark.
   if ((columns || 80) < WIDTH + 12) {
-    return h(Box, { marginBottom: 1 }, h(Text, { color: palette.brand, bold: true }, '✦ Rootly Wizard'));
+    return h(
+      Box,
+      { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+      ...LOGO.map((line, row) => h(Text, { key: `logo-${row}`, color: palette.brand }, line)),
+      h(Box, { marginTop: 1 }, h(Text, { color: palette.brand, bold: true }, '✦ Rootly Wizard'))
+    );
   }
 
   const ramp = shimmerRamp;
@@ -68,6 +91,12 @@ export function Banner() {
   return h(
     Box,
     { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+    // The sprout, sitting above the wordmark in brand purple.
+    h(
+      Box,
+      { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+      ...LOGO.map((line, row) => h(Text, { key: `logo-${row}`, color: palette.brand }, line))
+    ),
     ...WORDMARK.map((line, row) =>
       h(
         Box,
