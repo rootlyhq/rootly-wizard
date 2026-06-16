@@ -1,6 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
 import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
+import { friendlyError } from '../format.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
@@ -183,6 +184,15 @@ function InkWizardApp({ onExit }) {
     };
   }, [screen, userPhone]);
 
+  // Landing on a menu ends any in-progress flow: clear the picked team and the
+  // pending-action form so a later flow can't act on a stale team selection.
+  useEffect(() => {
+    if (screen === 'menu' || screen === 'general-menu') {
+      setSelectedTeam(null);
+      setFormState({});
+    }
+  }, [screen]);
+
   const leave = () => {
     onExit?.();
     exit();
@@ -297,7 +307,7 @@ function InkWizardApp({ onExit }) {
             setScreen('menu');
             return;
           }
-          setResultScreen({ title: 'Sign-in failed', lines: [result.summary], next: 'auth-method' });
+          setResultScreen({ title: 'Sign-in failed', lines: [friendlyError(result.summary)], next: 'auth-method' });
           setScreen('result');
         }
       },
@@ -335,7 +345,7 @@ function InkWizardApp({ onExit }) {
         setLoading(false);
         setResultScreen({
           title: 'Auth failed',
-          lines: [result.summary],
+          lines: [friendlyError(result.summary)],
           next: 'auth-token'
         });
         setScreen('result');
@@ -560,7 +570,7 @@ function InkWizardApp({ onExit }) {
                   '',
                   'Finish connecting Slack in your browser, then choose Continue to refresh your workspace status.'
                 ]
-              : [result.summary],
+              : [friendlyError(result.summary)],
             next: 'menu'
           });
           setScreen('result');
@@ -601,7 +611,7 @@ function InkWizardApp({ onExit }) {
                 '',
                 `Finish connecting ${option.value} in your browser, then choose Continue to refresh your workspace status.`
               ]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -638,7 +648,7 @@ function InkWizardApp({ onExit }) {
           title: result.ok ? 'MCP configured' : 'MCP setup blocked',
           lines: result.ok
             ? (result.data?.results || []).map((entry) => `${entry.client}: ${entry.targetPath}`)
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -822,9 +832,39 @@ function InkWizardApp({ onExit }) {
           setScreen('phone-entry');
           return;
         }
-        setScreen(option.value === 'continue' ? 'one-shot-members' : 'menu');
+        if (option.value === 'continue') {
+          // No phone on file → the test alert may not reach anyone. Confirm
+          // before running so the demo doesn't silently page no one.
+          setScreen(hasPhone ? 'one-shot-members' : 'one-shot-no-notify');
+          return;
+        }
+        setScreen('menu');
       },
       onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'one-shot-no-notify') {
+    return h(OptionScreen, {
+      title: 'No phone number yet',
+      lines: [
+        'You don’t have a phone number on file.',
+        '',
+        'If you connected Slack, you’re all set — the test alert will reach you there. Otherwise it won’t page anyone.',
+        '',
+        'Add a number, or continue anyway.'
+      ],
+      options: [
+        { label: 'Add a phone number', value: 'phone' },
+        { label: 'Continue anyway', value: 'continue' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: (option) => {
+        if (option.value === 'phone') setScreen('phone-entry');
+        else if (option.value === 'continue') setScreen('one-shot-members');
+        else setScreen('one-shot-prereqs');
+      },
+      onBack: () => setScreen('one-shot-prereqs')
     });
   }
 
@@ -843,7 +883,7 @@ function InkWizardApp({ onExit }) {
           setScreen('phone-code');
           return;
         }
-        setResultScreen({ title: 'Add a phone number', lines: [result.summary], next: 'phone-entry', continueLabel: 'Try again' });
+        setResultScreen({ title: 'Add a phone number', lines: [friendlyError(result.summary)], next: 'phone-entry', continueLabel: 'Try again' });
         setScreen('result');
       },
       onBack: () => setScreen('one-shot-prereqs')
@@ -873,7 +913,7 @@ function InkWizardApp({ onExit }) {
         }
         setResultScreen({
           title: 'Verification failed',
-          lines: [result.summary, 'Check the code and try again.'],
+          lines: [friendlyError(result.summary), 'Check the code and try again.'],
           next: 'phone-code',
           continueLabel: 'Try again'
         });
@@ -1002,7 +1042,7 @@ function InkWizardApp({ onExit }) {
           title: result.ok ? 'Team created' : 'Team setup needs attention',
           lines: result.ok
             ? [`Team: ${result.data?.name || value}`, result.data?.id ? `Team ID: ${result.data.id}` : 'Team created']
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: result.ok ? 'menu' : 'create-team'
         });
         setScreen('result');
@@ -1032,7 +1072,7 @@ function InkWizardApp({ onExit }) {
                 '',
                 'Manage and publish it from the Rootly web app.'
               ]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: result.ok ? 'menu' : 'create-status-page'
         });
         setScreen('result');
@@ -1120,7 +1160,7 @@ function InkWizardApp({ onExit }) {
                 `Team: ${selectedTeam?.name || 'Unknown'}`,
                 `Added as members: ${selectedOptions.map((option) => option.label).join(', ')}`
               ]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1155,7 +1195,7 @@ function InkWizardApp({ onExit }) {
                   ? [`Not in Rootly yet (added as contacts): ${result.data.unresolvedEmails.join(', ')}`]
                   : [])
               ]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1226,7 +1266,7 @@ function InkWizardApp({ onExit }) {
             title: result.ok ? 'Schedule created' : 'Schedule setup needs attention',
             lines: result.ok
               ? [`Team: ${selectedTeam?.name || 'Unknown'}`, `Schedule: ${formState.scheduleName}`, 'No one is on the initial rotation yet.']
-              : [result.summary],
+              : [friendlyError(result.summary)],
             next: 'menu'
           });
           setScreen('result');
@@ -1255,7 +1295,7 @@ function InkWizardApp({ onExit }) {
               `Schedule: ${formState.scheduleName}`,
               `Rotation members: ${selectedOptions.map((option) => option.label).join(', ') || 'none'}`
             ]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1281,7 +1321,7 @@ function InkWizardApp({ onExit }) {
           title: result.ok ? 'Escalation policy created' : 'Escalation policy needs attention',
           lines: result.ok
             ? [`Team: ${selectedTeam?.name || 'Unknown'}`, `Policy: ${result.data?.name || value}`]
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1306,7 +1346,7 @@ function InkWizardApp({ onExit }) {
           title: result.ok ? 'Alert source created' : 'Alert source needs attention',
           lines: result.ok
             ? [`Source: ${result.data?.name || value}`, result.data?.webhookEndpoint ? `Webhook: ${result.data.webhookEndpoint}` : 'Webhook created']
-            : [result.summary],
+            : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1329,7 +1369,7 @@ function InkWizardApp({ onExit }) {
         setLoading(false);
         setResultScreen({
           title: result.ok ? 'Test alert sent' : 'Test alert needs attention',
-          lines: result.ok ? [`Alert: ${result.data?.summary || value}`] : [result.summary],
+          lines: result.ok ? [`Alert: ${result.data?.summary || value}`] : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');
@@ -1352,7 +1392,7 @@ function InkWizardApp({ onExit }) {
         setLoading(false);
         setResultScreen({
           title: result.ok ? 'Test incident created' : 'Test incident needs attention',
-          lines: result.ok ? [`Incident: ${result.data?.title || value}`] : [result.summary],
+          lines: result.ok ? [`Incident: ${result.data?.title || value}`] : [friendlyError(result.summary)],
           next: 'menu'
         });
         setScreen('result');

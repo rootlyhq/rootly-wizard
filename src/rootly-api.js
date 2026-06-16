@@ -68,6 +68,10 @@ export class RootlyApiClient {
     return this.request('/v1/escalation_policies');
   }
 
+  async listAlertSources() {
+    return this.request('/v1/alert_sources');
+  }
+
   async listSeverities() {
     return this.request('/v1/severities');
   }

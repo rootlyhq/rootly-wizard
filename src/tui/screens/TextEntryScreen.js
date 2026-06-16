@@ -12,9 +12,11 @@ export function TextEntryScreen({
   placeholder = '',
   onSubmit,
   onBack,
-  hidden = false
+  hidden = false,
+  allowEmpty = false
 }) {
   const [value, setValue] = useState(initialValue);
+  const [error, setError] = useState('');
   const { columns } = useWindowSize();
   // Fixed-width field so the box doesn't grow or jitter as you type, and long
   // values (API tokens) scroll on one line instead of wrapping inside the box.
@@ -30,14 +32,21 @@ export function TextEntryScreen({
       return;
     }
     if (key.return) {
-      onSubmit?.(value.trim());
+      const trimmed = value.trim();
+      if (!trimmed && !allowEmpty) {
+        setError('Please enter a value before continuing.');
+        return;
+      }
+      onSubmit?.(trimmed);
       return;
     }
     if (key.backspace || key.delete) {
+      if (error) setError('');
       setValue((current) => current.slice(0, -1));
       return;
     }
     if (!key.ctrl && !key.meta && input) {
+      if (error) setError('');
       setValue((current) => current + input);
     }
   });
@@ -73,6 +82,8 @@ export function TextEntryScreen({
           )
         )
       ),
+      // Validation error, right under the field.
+      error ? h(Box, { marginTop: 1 }, h(Text, { color: palette.danger }, `✗ ${error}`)) : null,
       // Supporting help, below the field.
       lines.length
         ? h(

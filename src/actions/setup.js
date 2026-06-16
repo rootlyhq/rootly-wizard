@@ -242,8 +242,40 @@ export async function createScheduleAction({ teamId, name, handoffTime = '09:00'
   };
 }
 
-export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false, scheduleId = null } = {}) {
+// Find an existing resource for this team by name (case-insensitive). Used to
+// keep re-runs idempotent instead of piling up duplicates. `groupKey` names the
+// attribute that holds the owning team ids (varies by resource).
+function findByName(list, name, teamId, groupKey) {
+  const target = String(name || '').trim().toLowerCase();
+  if (!target) return null;
+  return (list || []).find((item) => {
+    const attrs = item?.attributes || {};
+    if (String(attrs.name || '').trim().toLowerCase() !== target) return false;
+    if (!teamId) return true;
+    const groups = attrs[groupKey];
+    // If the resource exposes its owning teams, require a match; otherwise fall
+    // back to a name-only match.
+    return !Array.isArray(groups) || groups.map(String).includes(String(teamId));
+  }) || null;
+}
+
+export async function createEscalationPolicyAction({ teamId, name, repeatCount = 1, createDefaultPath = false, scheduleId = null, reuseByName = false } = {}) {
   const api = await loadApiClient();
+
+  if (reuseByName) {
+    try {
+      const existing = findByName((await api.listEscalationPolicies())?.data, name, teamId, 'group_ids');
+      if (existing) {
+        return {
+          ok: true,
+          summary: `Reused existing escalation policy ${name}.`,
+          data: { id: existing.id, teamId, name, repeatCount, reused: true, pathCreated: false, pathError: null, levelCreated: false, levelError: null }
+        };
+      }
+    } catch {
+      // If the lookup fails, fall through and create a fresh one.
+    }
+  }
 
   const payload = await api.createEscalationPolicy({
     name,
@@ -314,8 +346,31 @@ export async function createEscalationPolicyAction({ teamId, name, repeatCount =
   };
 }
 
-export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'generic_webhook' }) {
+export async function createAlertSourceAction({ teamId, name = 'Generic webhook', sourceType = 'generic_webhook', reuseByName = false }) {
   const api = await loadApiClient();
+
+  if (reuseByName) {
+    try {
+      const existing = findByName((await api.listAlertSources())?.data, name, teamId, 'owner_group_ids');
+      if (existing) {
+        const attrs = existing.attributes || {};
+        return {
+          ok: true,
+          summary: `Reused existing alert source ${name}.`,
+          data: {
+            id: existing.id,
+            name,
+            teamId: teamId || null,
+            reused: true,
+            webhookEndpoint: attrs.webhook_endpoint || null,
+            secret: attrs.secret || null
+          }
+        };
+      }
+    } catch {
+      // If the lookup fails, fall through and create a fresh one.
+    }
+  }
 
   const payload = await api.createAlertSource({
     name,

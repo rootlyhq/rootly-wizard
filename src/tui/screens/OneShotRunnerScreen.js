@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { AppShell } from '../components/AppShell.js';
 import { MenuList } from '../components/MenuList.js';
 import { palette, HINTS } from '../theme.js';
+import { friendlyError } from '../../format.js';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -32,28 +33,6 @@ const DONE_LABEL = {
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Turn a raw API error into a short, human phrase for the progress row.
-function friendlyError(raw) {
-  const s = String(raw || '');
-  if (/already been taken|already exists/i.test(s)) return 'already set up';
-  if (/not found or unauthorized/i.test(s)) return 'not permitted by this sign-in';
-  if (/\b429\b|rate limit/i.test(s)) return 'rate limited — try again shortly';
-  // Pull a human detail out of a JSON error body if present.
-  const brace = s.indexOf('{');
-  if (brace !== -1) {
-    try {
-      const body = JSON.parse(s.slice(brace));
-      const first = Array.isArray(body?.errors) ? body.errors[0] : null;
-      const detail = first?.detail || first?.title
-        || (body && typeof body === 'object' ? Object.values(body).flat()[0] : null);
-      if (detail) return String(detail);
-    } catch {
-      // fall through
-    }
-  }
-  return s.replace(/^\d{3}\s*-\s*/, '').trim() || 'could not be created';
-}
 
 function applyEvent(prev, evt) {
   if (evt.status === 'running') {

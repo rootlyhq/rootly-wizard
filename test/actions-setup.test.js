@@ -227,3 +227,53 @@ test('createEscalationPolicyAction keeps the policy when the default path fails'
   assert.equal(result.data.pathCreated, false);
   assert.ok(result.data.pathError);
 });
+
+test('createEscalationPolicyAction reuses an existing policy by name when asked', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/escalation_policies') && req.method === 'GET') {
+      return { body: { data: [
+        { id: 'ep-existing', attributes: { name: 'Payments Default Escalation', group_ids: ['100'] } }
+      ] } };
+    }
+    if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep-new' } } };
+    return { body: {} };
+  });
+
+  const result = await createEscalationPolicyAction({ teamId: '100', name: 'Payments Default Escalation', reuseByName: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.data.id, 'ep-existing');
+  assert.equal(result.data.reused, true);
+  // It must not POST a duplicate.
+  assert.equal(calls.some((c) => c.href.endsWith('/v1/escalation_policies') && c.method === 'POST'), false);
+});
+
+test('createEscalationPolicyAction still creates fresh when reuse is off (one-shot path)', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/escalation_policies') && req.method === 'POST') return { body: { data: { id: 'ep-new' } } };
+    return { body: {} };
+  });
+
+  const result = await createEscalationPolicyAction({ teamId: '100', name: 'Payments Default Escalation' });
+  assert.equal(result.data.id, 'ep-new');
+  // No list lookup, and a POST happened.
+  assert.equal(calls.some((c) => c.href.endsWith('/v1/escalation_policies') && c.method === 'GET'), false);
+  assert.equal(calls.some((c) => c.href.endsWith('/v1/escalation_policies') && c.method === 'POST'), true);
+});
+
+test('createAlertSourceAction reuses an existing source by name when asked', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/alert_sources') && req.method === 'GET') {
+      return { body: { data: [
+        { id: 'as-existing', attributes: { name: 'Payments Generic Webhook', owner_group_ids: ['100'], webhook_endpoint: 'https://hook' } }
+      ] } };
+    }
+    if (req.href.endsWith('/v1/alert_sources') && req.method === 'POST') return { body: { data: { id: 'as-new' } } };
+    return { body: {} };
+  });
+
+  const result = await createAlertSourceAction({ teamId: '100', name: 'Payments Generic Webhook', reuseByName: true });
+  assert.equal(result.data.id, 'as-existing');
+  assert.equal(result.data.reused, true);
+  assert.equal(result.data.webhookEndpoint, 'https://hook');
+  assert.equal(calls.some((c) => c.href.endsWith('/v1/alert_sources') && c.method === 'POST'), false);
+});

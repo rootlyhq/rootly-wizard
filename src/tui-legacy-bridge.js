@@ -158,7 +158,9 @@ export async function createScheduleForTui(input) {
 
 export async function createEscalationPolicyForTui(input) {
   try {
-    return await createEscalationPolicyAction(input);
+    // Standalone flow: reuse an existing policy of the same name instead of
+    // creating a duplicate on re-run. (The one-shot calls the action directly.)
+    return await createEscalationPolicyAction({ reuseByName: true, ...input });
   } catch (error) {
     return {
       ok: false,
@@ -169,7 +171,9 @@ export async function createEscalationPolicyForTui(input) {
 
 export async function createAlertSourceForTui(input) {
   try {
-    return await createAlertSourceAction(input);
+    // Standalone flow: reuse an existing source of the same name instead of
+    // creating a duplicate on re-run. (The one-shot calls the action directly.)
+    return await createAlertSourceAction({ reuseByName: true, ...input });
   } catch (error) {
     return {
       ok: false,
