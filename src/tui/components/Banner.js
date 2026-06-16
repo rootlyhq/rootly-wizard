@@ -30,6 +30,13 @@ const WORDMARK = 'Rootly Wizard';
 const CREST = ['#FFFFFF', '#E0DAFB', '#C9BEF7', '#9D86F0', palette.brand];
 const REVEAL_STEP = 1;
 
+// Glimmer band swept diagonally across the sprout: a bright crest tapering back
+// to brand purple. Centered on the band's middle index.
+const GLIMMER = ['#9D86F0', '#C9BEF7', '#E0DAFB', '#FFFFFF', '#E0DAFB', '#C9BEF7', '#9D86F0'];
+const GLIMMER_CENTER = (GLIMMER.length - 1) / 2;
+// Diagonal span of the sprout plus a gap, so the glimmer sweeps then rests.
+const GLIMMER_PERIOD = LOGO_WIDTH + LOGO.length + 16;
+
 export function Banner() {
   const { columns } = useWindowSize();
   const [frame, setFrame] = useState(0);
@@ -39,13 +46,29 @@ export function Banner() {
     return () => clearInterval(timer);
   }, []);
 
+  // Glimmer front sweeps along the diagonal (col + row); cells near it brighten.
+  const glimmerFront = frame % GLIMMER_PERIOD;
+  const glimmerColor = (row, col) => {
+    const idx = (col + row) - glimmerFront + GLIMMER_CENTER;
+    return idx >= 0 && idx < GLIMMER.length ? GLIMMER[idx] : palette.brand;
+  };
+
   // Equal-width lines, each in its own Box, so the centered column lays the
-  // sprout out as one solid block (no per-line horizontal drift).
+  // sprout out as one solid block (no per-line horizontal drift). Each ink cell
+  // is its own Text so the glimmer can light it up as the band passes.
   const sprout = h(
     Box,
     { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
     ...LOGO_LINES.map((line, row) =>
-      h(Box, { key: `logo-${row}` }, h(Text, { color: palette.brand }, line))
+      h(
+        Box,
+        { key: `logo-${row}` },
+        ...[...line].map((char, col) =>
+          char === ' '
+            ? h(Text, { key: `l-${col}` }, ' ')
+            : h(Text, { key: `l-${col}`, color: glimmerColor(row, col) }, char)
+        )
+      )
     )
   );
 
