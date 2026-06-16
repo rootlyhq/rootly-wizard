@@ -1,7 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
 import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
-import { friendlyError, formatPhone } from '../format.js';
+import { friendlyError, formatPhone, hyperlink } from '../format.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
@@ -1076,8 +1076,8 @@ function InkWizardApp({ onExit }) {
                 `Title: ${result.data?.title || value}`,
                 'Visibility: internal',
                 result.data?.slug
-                  ? `View it: ${STATUS_PAGES_URL}/${result.data.slug}/private`
-                  : `Find it under Status Pages: ${STATUS_PAGES_URL}`,
+                  ? `View it: ${hyperlink(`${STATUS_PAGES_URL}/${result.data.slug}/private`)}`
+                  : `Find it under Status Pages: ${hyperlink(STATUS_PAGES_URL)}`,
                 '',
                 'Manage and publish it from the Rootly web app.'
               ]

@@ -1,3 +1,14 @@
+// Wrap a URL in an OSC 8 terminal hyperlink so supporting terminals render it
+// as a clickable link. Keeps the URL itself as the visible text by default, so
+// it stays readable/copyable where hyperlinks aren't supported. Non-TTY output
+// (pipes, CI) returns the plain label.
+export function hyperlink(url, label = url) {
+  if (!process.stdout || !process.stdout.isTTY) return label;
+  const OSC = ']8;;';
+  const BEL = '';
+  return `${OSC}${url}${BEL}${label}${OSC}${BEL}`;
+}
+
 // Format an E.164-ish phone number for display. US/Canada (+1 + 10 digits)
 // becomes +1 (415) 706-8600; anything else is returned as-is.
 export function formatPhone(raw) {
