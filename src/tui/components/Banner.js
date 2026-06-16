@@ -5,22 +5,18 @@ import { palette, shimmerRamp } from '../theme.js';
 // The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
 // pattern-matched to Unicode half-blocks (▀ ▄ █). Half-blocks are full-width and
 // tile cleanly, so the art holds up across fonts/line-heights. Regenerate with
-// `node scripts/generate-logo-art.mjs 28 14`.
+// `node scripts/generate-logo-art.mjs 20 10`.
 const LOGO = [
-  '             ▄▄',
-  '            ▄██▄',
-  '            ████',
-  '     █████  ▀██▀ ▄████▀',
-  '      ▀████      ████▀',
-  '        ▀▀   ▄▄   ▀▀',
-  '  █████▄    ▄██▄    ▄█████',
-  '   ▀████    ████    ████▀',
-  '            ▀██▀',
-  '▄▄▄▄▄▄▄▄▄          ▄▄▄▄▄▄▄▄▄',
-  '███████████▄▄  ▄▄███████████',
-  ' ▀     ▀▀▀███▄▄███▀▀▀     ▀',
-  '           ▀████▀',
-  '            ████'
+  '         ▄▄',
+  '         ██',
+  '    ███▄ ▀▀ ▄███',
+  '     ▀█▀    ▀█▀',
+  ' ▄▄█▄▄   ██   ▄▄█▄▄',
+  '  ▀██▀   ██   ▀██▀',
+  ' ▄▄▄     ▀▀     ▄▄▄',
+  '████████▄  ▄████████',
+  '      ▀▀████▀▀',
+  '        ▀██▀'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 
