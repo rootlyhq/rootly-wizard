@@ -3,20 +3,22 @@ import { Box, Text, useWindowSize } from 'ink';
 import { palette, shimmerRamp } from '../theme.js';
 
 // The Rootly sprout, rasterized from assets/rootly-logo-glyph.png and
-// pattern-matched to Unicode quadrant blocks (2x2 subpixels per cell). The 2x
-// horizontal resolution preserves all six leaflets — half-blocks merged the
-// center pair. Rendered wide (24x9) to match the real mark's aspect, which is
-// wider than tall. Regenerate (quadrant variant) with the script in scripts/.
+// pattern-matched to Unicode half-blocks (▀ ▄ █). Half-blocks have no partial-
+// cell corners, so the art stays free of the floating specks quadrant blocks
+// produced; rendered wide at 28x11 so the six leaflets separate cleanly without
+// merging. Regenerate with `node scripts/generate-logo-art.mjs 28 11`.
 const LOGO = [
-  '           ▟▙',
-  '          ▐██▌',
-  '    ▝███▙▖ ▀▀ ▗▟███▘',
-  '    ▖ ▀▀▀  ▗▖  ▀▀▀ ▗',
-  ' ▝▜███▙   ▐██▌   ▟███▛▘',
-  '    ▝▀    ▝██▘    ▀▘',
-  '███████▙▄▄    ▄▄▟███████',
-  '▝     ▝▀▀██▙▟██▀▀▘     ▘',
-  '          ▜██▛'
+  '             ▄▄',
+  '            ████',
+  '     ▄██▄▄  ▀██▀  ▄▄██▄',
+  '      ▀████      ████▀',
+  '   ▄▄▄▄ ▀▀   ▄▄   ▀▀ ▄▄▄▄',
+  '  ▀█████    ████    █████▀',
+  '    ▀▀▀     ████     ▀▀▀',
+  '▄▄▄▄▄▄▄▄▄▄         ▄▄▄▄▄▄▄▄▄',
+  '▀███████████▄  ▄███████████▀',
+  '          ▀██████▀',
+  '            ████'
 ];
 const LOGO_WIDTH = Math.max(...LOGO.map((line) => line.length));
 // Pad every line to the same width: rendered in a centered column, unequal-length
