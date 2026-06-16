@@ -54,6 +54,7 @@ const CLEAR_SCROLLBACK = '\u001b[3J';
 const CURSOR_HOME = '\u001b[H';
 
 const CEO_CAL_URL = 'https://cal.link/jj';
+const SALES_DEMO_URL = 'https://rootly.com/demo?utm_term=rootly&utm_campaign=Rootly_Brand_Search_USA&utm_source=google&utm_medium=ppc&utm_content=featuresad&gad_source=1&gad_campaignid=22513408256&gbraid=0AAAAACV5CgFej7JQ4Q1NvqRnqhOLGHiP8';
 const APP_BASE_URL = (process.env.ROOTLY_APP_URL?.trim().replace(/\/$/, '')) || 'https://rootly.com';
 const SIGNUP_URL = `${APP_BASE_URL}/users/sign_up`;
 const STATUS_PAGES_URL = `${APP_BASE_URL}/account/status-pages`;
@@ -708,7 +709,8 @@ function InkWizardApp({ onExit }) {
       ],
       options: [
         { label: 'Continue configuring the platform', value: 'configure' },
-        { label: 'Chat with JJ', value: 'chat-ceo' },
+        { label: 'Talk to our founder JJ (seriously)', value: 'chat-ceo' },
+        { label: 'Book a demo with sales', value: 'book-demo' },
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -720,17 +722,28 @@ function InkWizardApp({ onExit }) {
           setScreen('menu');
           return;
         }
+        const handoff = option.value === 'book-demo'
+          ? {
+              url: SALES_DEMO_URL,
+              title: 'Book a demo with sales',
+              opened: 'Opened the Rootly demo booking page in your browser.',
+              fallback: 'Open this link to book a demo with sales:'
+            }
+          : {
+              url: CEO_CAL_URL,
+              title: 'Talk to our founder JJ',
+              opened: "Opened JJ's calendar in your browser.",
+              fallback: 'Open this link to book a time with JJ:'
+            };
         setLoading(true);
-        const result = await openExternalUrlForTui(CEO_CAL_URL);
+        const result = await openExternalUrlForTui(handoff.url);
         setLoading(false);
         setResultScreen({
-          title: 'Chat with JJ',
+          title: handoff.title,
           lines: [
-            result.opened
-              ? "Opened JJ's calendar in your browser."
-              : 'Open this link to book a time with JJ:',
+            result.opened ? handoff.opened : handoff.fallback,
             '',
-            CEO_CAL_URL
+            handoff.url
           ],
           next: 'menu'
         });
