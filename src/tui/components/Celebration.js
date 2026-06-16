@@ -5,7 +5,9 @@ import { palette } from '../theme.js';
 // A few rows of confetti that twinkle and drift downward — a bit of fanfare,
 // built from glyphs + brand colors rather than emoji.
 const GLYPHS = ['✦', '✧', '✶', '*', '•', '·', '+'];
-const COLORS = [palette.brand, palette.accent, palette.success, '#F9BD2B', '#7CC4FF'];
+// Brand-forward confetti: Rootly purple + orange, with lighter purple/white
+// sparkles. (No off-brand greens/blues.)
+const COLORS = [palette.brand, palette.accent, '#9D86F0', '#C9BEF7', '#FFFFFF'];
 const ROWS = 3;
 
 // Deterministic per-cell hash (no Math.random), so the field is stable per

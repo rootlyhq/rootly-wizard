@@ -710,7 +710,7 @@ function InkWizardApp({ onExit }) {
         Box,
         { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
         h(Celebration),
-        h(BigText, { text: 'INCIDENT-READY', color: palette.success })
+        h(BigText, { text: 'INCIDENT-READY', color: palette.brand })
       ),
       lines: [
         'Your core Rootly setup is in place — teams, on-call, escalation, and alerting.',
