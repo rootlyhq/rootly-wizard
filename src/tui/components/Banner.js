@@ -24,8 +24,7 @@ const LOGO_LINES = LOGO.map((line) => line.padEnd(LOGO_WIDTH));
 
 // Small single-line tagline under the sprout (the app name already lives in the
 // top-left header, so the hero says what the wizard does instead of repeating it).
-// Letter-spaced so it reads a touch larger / more deliberate without a tall font.
-const TAGLINE = 'Your guided Rootly setup'.split('').join(' ');
+const TAGLINE = 'Your guided Rootly setup';
 
 // Bright-to-brand trail behind the reveal crest (white → brand purple, via
 // the P200/P300/P500 brand tints).
