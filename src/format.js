@@ -1,3 +1,11 @@
+// Format an E.164-ish phone number for display. US/Canada (+1 + 10 digits)
+// becomes +1 (415) 706-8600; anything else is returned as-is.
+export function formatPhone(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
+  return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : s;
+}
+
 // Turn a raw API/action error string into a short, human phrase suitable for a
 // result screen. Passes already-clean text through unchanged, so it's safe to
 // wrap any failure summary with it.

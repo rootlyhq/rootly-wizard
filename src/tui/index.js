@@ -1,7 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
 import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
-import { friendlyError } from '../format.js';
+import { friendlyError, formatPhone } from '../format.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
@@ -812,7 +812,7 @@ function InkWizardApp({ onExit }) {
       ? [
           'A test alert pages whoever is on call.',
           '',
-          `Your phone number is on file: ${userPhone?.phone || 'added'}.`,
+          { text: `✓ Phone on file — ${formatPhone(userPhone?.phone) || 'added'}`, color: palette.success, bold: true },
           '',
           'Connect Slack too if you like, then continue.'
         ]
