@@ -60,17 +60,36 @@ export async function createTeamAction({
     attributes.incident_broadcast_enabled = true;
   }
 
-  const payload = await api.createTeam(attributes);
+  // OAuth sessions can't assign user_ids/admin_ids — Team/Membership/User are
+  // read-only under OAuth scopes, so a create that seeds members is denied. Fall
+  // back to a bare create so the team still gets made; schedule ownership and the
+  // on-call rotation reference the user directly, so paging still works.
+  let payload;
+  let membershipSkipped = false;
+  try {
+    payload = await api.createTeam(attributes);
+  } catch (error) {
+    const denied = /\b40[134]\b|not found or unauthorized/i.test(error?.message || '');
+    if (denied && (attributes.user_ids.length || attributes.admin_ids.length)) {
+      payload = await api.createTeam({ name, description });
+      membershipSkipped = true;
+    } else {
+      throw error;
+    }
+  }
   const teamId = extractTeamId(payload);
 
   return {
     ok: true,
-    summary: `Created team ${name}.`,
+    summary: membershipSkipped
+      ? `Created team ${name} (this sign-in can't add members; add them in the Rootly web app).`
+      : `Created team ${name}.`,
     data: {
       id: teamId,
       name,
       description,
-      memberIds,
+      memberIds: membershipSkipped ? [] : memberIds,
+      membershipSkipped,
       userLookupUnavailable,
       matchedUsers: matchedUsers.map((user) => ({
         id: user.id,
