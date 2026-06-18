@@ -1,6 +1,6 @@
 import { loadOnboardingState } from './runtime.js';
 import { getTeamsAction, getSchedulesAction, getEscalationPoliciesAction } from './actions/inspect.js';
-import { getTeamMembersAction, getAddableTeamMembersAction, getDirectoryUsersAction } from './actions/inspect.js';
+import { getTeamMembersAction, getAddableTeamMembersAction, getDirectoryUsersAction, getStatusPageComponentsAction } from './actions/inspect.js';
 import { getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import {
   createTeamAction,
@@ -179,6 +179,15 @@ export async function createAlertSourceForTui(input) {
       ok: false,
       summary: error?.message || 'The wizard could not create the alert source.'
     };
+  }
+}
+
+export async function loadStatusPageComponentsForTui() {
+  try {
+    const result = await getStatusPageComponentsAction();
+    return result.ok ? result.data : { components: [] };
+  } catch {
+    return { components: [] };
   }
 }
 

@@ -80,6 +80,10 @@ export class RootlyApiClient {
     return this.request('/v1/services');
   }
 
+  async listFunctionalities() {
+    return this.request('/v1/functionalities');
+  }
+
   async listEnvironments() {
     return this.request('/v1/environments');
   }

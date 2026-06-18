@@ -431,7 +431,21 @@ export async function createAlertSourceAction({ teamId, name = 'Generic webhook'
   };
 }
 
-export async function createStatusPageAction({ title, description, isPublic = false } = {}) {
+export async function createStatusPageAction({
+  title,
+  description,
+  isPublic = false,
+  // Authentication: 'none' (default) or 'password' (needs authenticationPassword).
+  authenticationMethod = 'none',
+  authenticationPassword = null,
+  // Components to show on the page.
+  serviceIds = [],
+  functionalityIds = [],
+  // publish=true creates it live; publish=false leaves it as an unpublished draft.
+  publish = true,
+  // Optional "customize further" fields.
+  websiteUrl = null
+} = {}) {
   const clean = String(title || '').trim();
   if (!clean) {
     return { ok: false, summary: 'A status page title is required.' };
@@ -442,24 +456,39 @@ export async function createStatusPageAction({ title, description, isPublic = fa
   const cleanDescription = String(description ?? '').trim()
     || 'Created by the Rootly setup wizard.';
 
+  const cleanServiceIds = serviceIds.map((id) => String(id)).filter(Boolean);
+  const cleanFunctionalityIds = functionalityIds.map((id) => String(id)).filter(Boolean);
+  const usePassword = authenticationMethod === 'password' && authenticationPassword;
+
   const api = await loadApiClient();
   const payload = await api.createStatusPage({
     title: clean,
     description: cleanDescription,
     public: Boolean(isPublic),
-    enabled: true
+    enabled: Boolean(publish), // false = unpublished draft
+    authentication_method: usePassword ? 'password' : 'none',
+    ...(usePassword ? { authentication_password: authenticationPassword } : {}),
+    ...(cleanServiceIds.length ? { service_ids: cleanServiceIds } : {}),
+    ...(cleanFunctionalityIds.length ? { functionality_ids: cleanFunctionalityIds } : {}),
+    ...(websiteUrl ? { website_url: String(websiteUrl).trim() } : {})
   });
   const attributes = payload?.data?.attributes || {};
+  const published = Boolean(attributes.enabled);
+  const visibility = isPublic ? 'public' : 'internal';
 
   return {
     ok: true,
-    summary: `Created ${isPublic ? 'public' : 'internal'} status page ${clean}.`,
+    summary: published
+      ? `Published ${visibility} status page ${clean}.`
+      : `Saved ${visibility} status page ${clean} as a draft.`,
     data: {
       id: payload?.data?.id || null,
       title: clean,
       public: Boolean(attributes.public),
-      slug: attributes.slug || null,
-      url: attributes.url || attributes.public_url || null
+      published,
+      authenticationMethod: usePassword ? 'password' : 'none',
+      componentCount: cleanServiceIds.length + cleanFunctionalityIds.length,
+      slug: attributes.slug || null
     }
   };
 }

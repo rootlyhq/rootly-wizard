@@ -3,12 +3,9 @@ import { Box, Text } from 'ink';
 import { AppShell } from '../components/AppShell.js';
 import { MenuList } from '../components/MenuList.js';
 import { palette, HINTS } from '../theme.js';
-import { friendlyError, hyperlink } from '../../format.js';
+import { friendlyError } from '../../format.js';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-// Web base for building links to created resources (matches the rest of the app).
-const APP_BASE_URL = (process.env.ROOTLY_APP_URL?.trim().replace(/\/$/, '')) || 'https://rootly.com';
 
 // Label while a step is in flight vs. once it has settled.
 const RUNNING_LABEL = {
@@ -17,7 +14,6 @@ const RUNNING_LABEL = {
   schedule: 'Creating on-call schedule',
   'escalation-policy': 'Creating escalation policy',
   'alert-source': 'Adding alert source',
-  'status-page': 'Creating internal status page',
   'test-alert': 'Firing test alert',
   'test-incident': 'Opening test incident'
 };
@@ -27,7 +23,6 @@ const DONE_LABEL = {
   schedule: 'On-call schedule',
   'escalation-policy': 'Escalation policy',
   'alert-source': 'Alert source',
-  'status-page': 'Internal status page',
   'test-alert': 'Test alert',
   'test-incident': 'Test incident'
 };
@@ -141,7 +136,6 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
     },
     data.escalationPolicy && { label: 'Escalation', value: data.escalationPolicy.name },
     data.alertSource && { label: 'Alert source', value: data.alertSource.name },
-    data.statusPage && { label: 'Status page', value: `${data.statusPage.title} (internal)` },
     data.alert && { label: 'Test alert', value: data.alert.summary },
     data.incident && { label: 'Test incident', value: data.incident.title }
   ].filter(Boolean);
@@ -169,11 +163,6 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
       h(Box, { flexDirection: 'column' }, ...rows.map((row) => h(SummaryRow, { key: row.label, label: row.label, value: row.value }))),
       data.incident?.slackChannelUrl
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, `Incident channel: ${data.incident.slackChannelUrl}`))
-        : null,
-      data.statusPage?.slug
-        // Short, single-line clickable label — a long URL hard-wraps inside the
-        // card and can't be cleanly copied; ⌘-click (iTerm/VS Code) opens it.
-        ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, hyperlink(`${APP_BASE_URL}/account/status-pages/${data.statusPage.slug}/private`, '↗ Open the status page')))
         : null,
       rows.length
         ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, 'Verify any of this in the Rootly web app.'))

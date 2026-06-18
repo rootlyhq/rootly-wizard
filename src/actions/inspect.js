@@ -1,5 +1,20 @@
 import { getActiveToken, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
 
+// Services + functionalities a status page can show as components. Values are
+// encoded "service:<id>" / "functionality:<id>" so the picker can split them.
+export async function getStatusPageComponentsAction() {
+  const api = await loadApiClient();
+  const [services, functionalities] = await Promise.all([
+    api.listServices().catch(() => ({ data: [] })),
+    api.listFunctionalities().catch(() => ({ data: [] }))
+  ]);
+  const components = [
+    ...((services?.data) || []).map((s) => ({ label: `${s.attributes?.name || s.id} · service`, value: `service:${s.id}` })),
+    ...((functionalities?.data) || []).map((f) => ({ label: `${f.attributes?.name || f.id} · functionality`, value: `functionality:${f.id}` }))
+  ];
+  return { ok: true, data: { components } };
+}
+
 export async function getStatusAction() {
   const state = await loadOnboardingState();
   if (!state) {
