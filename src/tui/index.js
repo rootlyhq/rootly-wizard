@@ -765,7 +765,7 @@ function InkWizardApp({ onExit }) {
 
   if (screen === 'one-shot') {
     return h(OptionScreen, {
-      title: 'Recommended setup',
+      title: 'Quick start',
       lines: [
         'Set up everything at once: a team, an on-call schedule, an escalation policy, and an alert source, then fire a test alert and open a test incident so you can see the full flow.',
         '',
@@ -829,7 +829,7 @@ function InkWizardApp({ onExit }) {
         { label: 'Connect Slack', value: 'slack' },
         // Only offer to add a number when the user doesn't already have one.
         ...(hasPhone ? [] : [{ label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' }]),
-        { label: 'Continue to setup', value: 'continue' },
+        { label: 'Continue setup', value: 'continue' },
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -942,7 +942,7 @@ function InkWizardApp({ onExit }) {
     // and let the chain seed the current identity so the rotation isn't empty.
     if (!options.length) {
       return h(OptionScreen, {
-        title: 'Recommended setup',
+        title: 'Quick start',
         lines: [
           directoryUsers?.userLookupUnavailable
             ? 'This sign-in can’t list Rootly users, so members can’t be picked. Setup will still create the team and put the current identity on call.'
