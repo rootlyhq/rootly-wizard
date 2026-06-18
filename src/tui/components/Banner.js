@@ -38,6 +38,21 @@ const GLIMMER_CENTER = (GLIMMER.length - 1) / 2;
 // Diagonal span of the sprout plus a gap, so the glimmer sweeps then rests.
 const GLIMMER_PERIOD = LOGO_WIDTH + LOGO.length + 16;
 
+// Bloom-in on startup: the sprout grows outward from its base, brightest at the
+// expanding edge and settling to brand purple behind it — then the resting
+// glimmer takes over. Rows count ~2x columns (cells are taller than wide) so the
+// bloom front stays visually round.
+const BLOOM_ORIGIN_ROW = LOGO.length - 1;
+const BLOOM_ORIGIN_COL = (LOGO_WIDTH - 1) / 2;
+const bloomDistance = (row, col) => Math.hypot((BLOOM_ORIGIN_ROW - row) * 2, col - BLOOM_ORIGIN_COL);
+const BLOOM_MAX = Math.max(
+  ...LOGO_LINES.flatMap((line, row) =>
+    [...line].map((ch, col) => (ch === ' ' ? 0 : bloomDistance(row, col)))
+  )
+);
+const BLOOM_SPEED = 1.2; // distance units revealed per frame
+const BLOOM_FRAMES = Math.ceil((BLOOM_MAX + CREST.length) / BLOOM_SPEED);
+
 export function Banner() {
   const { columns } = useWindowSize();
   const [frame, setFrame] = useState(0);
@@ -54,6 +69,18 @@ export function Banner() {
     return idx >= 0 && idx < GLIMMER.length ? GLIMMER[idx] : palette.brand;
   };
 
+  // Startup bloom: reveal cells outward from the base (bright at the growing
+  // edge, settling to brand). Once it finishes, fall straight through to the
+  // resting glimmer — so the eventual shape is exactly what we have today.
+  const bloomFront = frame * BLOOM_SPEED;
+  const bloomDone = frame > BLOOM_FRAMES;
+  const cellColor = (row, col) => {
+    if (bloomDone) return glimmerColor(row, col);
+    const edge = bloomFront - bloomDistance(row, col);
+    if (edge < 0) return null; // not yet bloomed — render blank
+    return CREST[Math.min(Math.floor(edge), CREST.length - 1)];
+  };
+
   // Equal-width lines, each in its own Box, so the centered column lays the
   // sprout out as one solid block (no per-line horizontal drift). Each ink cell
   // is its own Text so the glimmer can light it up as the band passes.
@@ -65,11 +92,13 @@ export function Banner() {
       h(
         Box,
         { key: `logo-${row}` },
-        ...[...line].map((char, col) =>
-          char === ' '
+        ...[...line].map((char, col) => {
+          if (char === ' ') return h(Text, { key: `l-${col}` }, ' ');
+          const color = cellColor(row, col);
+          return color === null
             ? h(Text, { key: `l-${col}` }, ' ')
-            : h(Text, { key: `l-${col}`, color: glimmerColor(row, col) }, char)
-        )
+            : h(Text, { key: `l-${col}`, color }, char);
+        })
       )
     )
   );
@@ -84,7 +113,8 @@ export function Banner() {
   }
 
   const ramp = shimmerRamp;
-  const reveal = frame * REVEAL_STEP;
+  // The tagline writes on after the sprout has finished blooming.
+  const reveal = (frame - BLOOM_FRAMES) * REVEAL_STEP;
   const settled = reveal > TAGLINE.length + CREST.length;
 
   const colorFor = (col) => {
