@@ -1092,11 +1092,13 @@ function InkWizardApp({ onExit }) {
   const patchSp = (patch) => setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), ...patch } }));
 
   if (screen === 'sp-name') {
+    const orgName = state?.teams?.workspace?.name;
+    const defaultName = orgName ? `${orgName} Status` : 'Status Page';
     return h(TextEntryScreen, {
       title: 'Create a status page',
       prompt: `Name your ${sp.isPublic === false ? 'internal' : 'public'} status page.`,
       placeholder: 'e.g. Acme Status',
-      initialValue: sp.title || '',
+      initialValue: sp.title || defaultName,
       onSubmit: (value) => {
         patchSp({ title: value });
         setScreen('sp-auth');
