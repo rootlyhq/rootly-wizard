@@ -9,7 +9,9 @@ import {
   createScheduleAction,
   createEscalationPolicyAction,
   createAlertSourceAction,
-  createStatusPageAction
+  createStatusPageAction,
+  getStatusPagesAction,
+  publishStatusPageAction
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { runOneShotSetupAction } from './actions/oneshot.js';
@@ -188,6 +190,23 @@ export async function loadStatusPageComponentsForTui() {
     return result.ok ? result.data : { components: [] };
   } catch {
     return { components: [] };
+  }
+}
+
+export async function loadStatusPagesForTui() {
+  try {
+    const result = await getStatusPagesAction();
+    return result.ok ? result.data : { pages: [] };
+  } catch {
+    return { pages: [] };
+  }
+}
+
+export async function publishStatusPageForTui(input) {
+  try {
+    return await publishStatusPageAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'The wizard could not publish the status page.' };
   }
 }
 

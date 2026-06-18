@@ -493,6 +493,39 @@ export async function createStatusPageAction({
   };
 }
 
+export async function getStatusPagesAction() {
+  const api = await loadApiClient();
+  const payload = await api.listStatusPages();
+  const pages = (payload?.data || []).map((p) => ({
+    id: p.id,
+    title: p.attributes?.title || p.attributes?.public_title || '(untitled)',
+    public: Boolean(p.attributes?.public),
+    published: Boolean(p.attributes?.enabled),
+    slug: p.attributes?.slug || null
+  }));
+  return { ok: true, data: { pages } };
+}
+
+export async function publishStatusPageAction({ id } = {}) {
+  if (!id) {
+    return { ok: false, summary: 'A status page id is required to publish.' };
+  }
+  const api = await loadApiClient();
+  const payload = await api.updateStatusPage(id, { enabled: true });
+  const attributes = payload?.data?.attributes || {};
+  return {
+    ok: true,
+    summary: `Published status page ${attributes.title || id}.`,
+    data: {
+      id,
+      title: attributes.title || null,
+      public: Boolean(attributes.public),
+      published: Boolean(attributes.enabled),
+      slug: attributes.slug || null
+    }
+  };
+}
+
 export function serializeActionError(error, fallbackSummary) {
   return {
     ok: false,

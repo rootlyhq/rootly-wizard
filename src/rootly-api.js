@@ -180,9 +180,25 @@ export class RootlyApiClient {
     return this.request('/v1/alert_urgencies');
   }
 
+  async listStatusPages() {
+    return this.request('/v1/status-pages');
+  }
+
   async createStatusPage(attributes) {
     return this.request('/v1/status-pages', {
       method: 'POST',
+      body: {
+        data: {
+          type: 'status_pages',
+          attributes
+        }
+      }
+    });
+  }
+
+  async updateStatusPage(id, attributes) {
+    return this.request(`/v1/status-pages/${id}`, {
+      method: 'PATCH',
       body: {
         data: {
           type: 'status_pages',

@@ -33,6 +33,8 @@ import {
   createAlertSourceForTui,
   createStatusPageForTui,
   loadStatusPageComponentsForTui,
+  loadStatusPagesForTui,
+  publishStatusPageForTui,
   createTestAlertForTui,
   createTestIncidentForTui,
   deleteTokenForTui,
@@ -88,6 +90,7 @@ function InkWizardApp({ onExit }) {
   const [addableUsers, setAddableUsers] = useState(null);
   const [directoryUsers, setDirectoryUsers] = useState(null);
   const [spComponents, setSpComponents] = useState(null);
+  const [spExisting, setSpExisting] = useState(null);
   const [userPhone, setUserPhone] = useState(null);
   const [authRecovery, setAuthRecovery] = useState(null);
 
@@ -171,6 +174,23 @@ function InkWizardApp({ onExit }) {
       cancelled = true;
     };
   }, [screen]);
+
+  // Detect existing status pages at the start of the guided flow.
+  useEffect(() => {
+    if (screen !== 'sp-start' || spExisting !== null) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      const data = await loadStatusPagesForTui();
+      if (!cancelled) {
+        setSpExisting(data || { pages: [] });
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [screen, spExisting]);
 
   // Load services/functionalities to offer as status-page components.
   useEffect(() => {
@@ -524,9 +544,10 @@ function InkWizardApp({ onExit }) {
           return;
         }
         if (option.value === 'create-status-page') {
-          // Launch the guided public status-page flow.
+          // Launch the guided public status-page flow (detects existing pages first).
+          setSpExisting(null);
           setFormState({ sp: { isPublic: true, returnTo: 'general-menu' } });
-          setScreen('sp-name');
+          setScreen('sp-start');
           return;
         }
         setFormState({ pendingAction: option.value === 'create-schedule' ? 'create-schedule-name' : option.value });
@@ -747,8 +768,9 @@ function InkWizardApp({ onExit }) {
       ],
       onSelect: async (option) => {
         if (option.value === 'status-page') {
+          setSpExisting(null);
           setFormState({ sp: { isPublic: true, returnTo: 'menu' } });
-          setScreen('sp-name');
+          setScreen('sp-start');
           return;
         }
         if (option.value === 'configure') {
@@ -1087,9 +1109,110 @@ function InkWizardApp({ onExit }) {
     });
   }
 
-  // ---- Guided status page flow (public): name → auth → components → customize → publish ----
+  // ---- Guided status page flow (public): detect → name → auth → components → customize → publish ----
   const sp = formState.sp || {};
   const patchSp = (patch) => setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), ...patch } }));
+  const spReturn = sp.returnTo || 'menu';
+
+  if (screen === 'sp-start') {
+    if (spExisting === null) {
+      return h(LoadingScreen, { title: 'Status pages', detail: 'Checking for an existing page…' });
+    }
+    const existing = spExisting.pages || [];
+    if (!existing.length) {
+      return h(OptionScreen, {
+        title: 'Create a status page',
+        lines: ['No status page exists yet — let’s create one.'],
+        options: [{ label: 'Create a status page', value: 'new' }, { label: 'Back', value: 'back' }],
+        onSelect: (option) => setScreen(option.value === 'back' ? spReturn : 'sp-name'),
+        onBack: () => setScreen(spReturn)
+      });
+    }
+    return h(OptionScreen, {
+      title: 'Status pages',
+      lines: [
+        `Your workspace already has ${existing.length} status page${existing.length === 1 ? '' : 's'} (new accounts come with a default one).`,
+        '',
+        'Customize an existing page, or create a new one.'
+      ],
+      options: [
+        { label: 'Customize an existing page', value: 'existing' },
+        { label: 'Create a new page', value: 'new' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: (option) => {
+        if (option.value === 'back') { setScreen(spReturn); return; }
+        setScreen(option.value === 'existing' ? 'sp-pick-existing' : 'sp-name');
+      },
+      onBack: () => setScreen(spReturn)
+    });
+  }
+
+  if (screen === 'sp-pick-existing') {
+    const existing = spExisting?.pages || [];
+    return h(OptionScreen, {
+      title: 'Pick a page to customize',
+      lines: ['Choose the status page to update.'],
+      options: [
+        ...existing.map((p) => ({
+          label: `${p.title} · ${p.public ? 'public' : 'internal'} · ${p.published ? 'published' : 'draft'}`,
+          value: p.id
+        })),
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: (option) => {
+        if (option.value === 'back') { setScreen('sp-start'); return; }
+        patchSp({ existingPage: existing.find((p) => p.id === option.value) || null });
+        setScreen('sp-existing-actions');
+      },
+      onBack: () => setScreen('sp-start')
+    });
+  }
+
+  if (screen === 'sp-existing-actions') {
+    const page = sp.existingPage || {};
+    const slug = page.slug;
+    const view = page.public ? 'public' : 'private';
+    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${view}` : STATUS_PAGES_URL;
+    const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
+    return h(OptionScreen, {
+      title: `Customize ${page.title || 'status page'}`,
+      lines: [
+        `${page.public ? 'Public' : 'Internal'} · ${page.published ? 'published' : 'draft'}.`,
+        '',
+        'Publish makes it live; deeper customization happens in the Rootly web app.'
+      ],
+      options: [
+        ...(page.published ? [] : [{ label: 'Publish it now', value: 'publish' }]),
+        { label: 'Open it in Rootly to edit', value: 'open' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') { setScreen('sp-pick-existing'); return; }
+        if (option.value === 'open') {
+          setResultScreen({
+            title: page.title || 'Status page',
+            lines: [hyperlink(page.published ? liveUrl : manageUrl, '↗ Open it in Rootly'), '', 'Customize and publish it in the web app.'],
+            next: spReturn
+          });
+          setScreen('result');
+          return;
+        }
+        setLoading(true);
+        const result = await publishStatusPageForTui({ id: page.id });
+        setLoading(false);
+        setResultScreen({
+          title: result.ok ? 'Status page published' : 'Could not publish',
+          lines: result.ok
+            ? [`${page.title} is now live.`, '', hyperlink(liveUrl, '↗ View your status page'), '', 'Customize it anytime in the web app.']
+            : [friendlyError(result.summary)],
+          next: result.ok ? spReturn : 'sp-existing-actions'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('sp-pick-existing')
+    });
+  }
 
   if (screen === 'sp-name') {
     const orgName = state?.teams?.workspace?.name;
@@ -1103,7 +1226,7 @@ function InkWizardApp({ onExit }) {
         patchSp({ title: value });
         setScreen('sp-auth');
       },
-      onBack: () => setScreen(sp.returnTo || 'setup-menu')
+      onBack: () => setScreen('sp-start')
     });
   }
 
