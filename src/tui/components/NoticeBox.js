@@ -1,24 +1,56 @@
 import { createElement as h } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
 import { palette } from '../theme.js';
 
+// Greedy word-wrap to `width`, trimming each segment. We pre-wrap rather than
+// letting Ink wrap, because Ink keeps the boundary space and the continuation
+// line ends up indented one space (visible when the terminal is resized).
+function wrapLine(text, width) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+  const out = [];
+  let current = '';
+  for (const word of words) {
+    if (!current) {
+      current = word;
+    } else if ((current + ' ' + word).length <= width) {
+      current += ' ' + word;
+    } else {
+      out.push(current);
+      current = word;
+    }
+  }
+  if (current) out.push(current);
+  return out;
+}
+
 export function NoticeBox({ title, lines = [] }) {
-  return h(
-    Box,
-    { flexDirection: 'column', marginBottom: 1 },
-    title ? h(Box, { marginBottom: 1 }, h(Text, { bold: true, color: palette.text }, title)) : null,
-    // Lines are plain strings, or objects { text, color, bold } for emphasis.
-    ...lines.map((line, index) => {
-      const isObject = line && typeof line === 'object';
-      const text = isObject ? line.text : line;
-      if (String(text ?? '').trim() === '') {
-        return h(Box, { key: `blank-${index}` }, h(Text, null, ' '));
-      }
-      return h(
-        Box,
-        { key: `line-${index}` },
-        h(Text, { color: (isObject && line.color) || palette.text, bold: isObject ? Boolean(line.bold) : false }, text)
+  const { columns } = useWindowSize();
+  // Mirror AppShell's content width: card width (min 82 / cols-4) minus the
+  // round border (2) and paddingX (2 each side = 4).
+  const cardWidth = Math.min(82, Math.max(24, (columns || 80) - 4));
+  const wrapWidth = Math.max(18, cardWidth - 6);
+
+  const rendered = [];
+  if (title) {
+    rendered.push(h(Box, { key: 'title', marginBottom: 1 }, h(Text, { bold: true, color: palette.text }, title)));
+  }
+  // Lines are plain strings, or objects { text, color, bold } for emphasis.
+  lines.forEach((line, index) => {
+    const isObject = line && typeof line === 'object';
+    const text = isObject ? line.text : line;
+    if (String(text ?? '').trim() === '') {
+      rendered.push(h(Box, { key: `blank-${index}` }, h(Text, null, ' ')));
+      return;
+    }
+    const color = (isObject && line.color) || palette.text;
+    const bold = isObject ? Boolean(line.bold) : false;
+    wrapLine(text, wrapWidth).forEach((segment, segIndex) => {
+      rendered.push(
+        h(Box, { key: `line-${index}-${segIndex}` }, h(Text, { color, bold }, segment))
       );
-    })
-  );
+    });
+  });
+
+  return h(Box, { flexDirection: 'column', marginBottom: 1 }, ...rendered);
 }
