@@ -43,12 +43,13 @@ export function WelcomeScreen({ lines, onContinue, onExit }) {
     h(Banner, null),
     h(
       Box,
-      { flexDirection: 'column', minHeight: lines.length },
+      // Gap between the hero and the intro copy so the splash doesn't feel stacked.
+      { flexDirection: 'column', marginTop: 1, minHeight: lines.length },
       phase >= 1 ? h(SlideReveal, { lines, onDone: () => setPhase(2) }) : null
     ),
     h(
       Box,
-      { marginTop: 1, minHeight: menuOptions.length },
+      { marginTop: 2, minHeight: menuOptions.length },
       phase >= 2
         ? h(MenuList, {
             tint: menuTint,

@@ -59,7 +59,8 @@ export function Banner() {
   // is its own Text so the glimmer can light it up as the band passes.
   const sprout = h(
     Box,
-    { flexDirection: 'column', alignItems: 'center', marginBottom: 1 },
+    // Breathing room above the sprout and between it and the tagline.
+    { flexDirection: 'column', alignItems: 'center', marginTop: 1, marginBottom: 1 },
     ...LOGO_LINES.map((line, row) =>
       h(
         Box,
