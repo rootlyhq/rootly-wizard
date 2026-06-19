@@ -1137,6 +1137,13 @@ function InkWizardApp({ onExit }) {
   const patchSp = (patch) => setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), ...patch } }));
   const spReturn = sp.returnTo || 'menu';
 
+  // The live public page lives at /teams/<org-slug>/status-pages/<slug>/public, but
+  // the org slug isn't exposed in the API — so we open the account editor instead
+  // (slug-keyed, always works; it previews the live page and links to it with the
+  // correct URL Rootly builds server-side). Both helpers point there.
+  const spViewUrl = (slug) => `${STATUS_PAGES_URL}/${slug}/edit`;
+  const spManageUrl = (slug) => `${STATUS_PAGES_URL}/${slug}/edit`;
+
   // Create-or-update the page (always published), then open it in the browser so
   // there's no URL to copy. Further tweaks (incl. disabling) happen in the web UI.
   const finalizeStatusPage = async () => {
@@ -1155,7 +1162,7 @@ function InkWizardApp({ onExit }) {
     setLoading(false);
     const slug = result.data?.slug || sp.existingPage?.slug;
     const isPublic = result.data?.public ?? (sp.isPublic !== false);
-    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${isPublic ? 'public' : 'private'}` : STATUS_PAGES_URL;
+    const liveUrl = slug ? spViewUrl(slug, isPublic) : STATUS_PAGES_URL;
     if (result.ok) await openExternalUrlForTui(liveUrl);
     setResultScreen({
       title: result.ok ? 'Your status page is live' : 'Status page needs attention',
@@ -1163,9 +1170,9 @@ function InkWizardApp({ onExit }) {
         ? [
             `${result.data?.title || sp.title}`,
             '',
-            'Opened your status page in the browser.',
+            'Opened your status page in Rootly — preview it and customize it there.',
             '',
-            hyperlink(liveUrl, '↗ Open it again to edit further in Rootly')
+            hyperlink(slug ? spManageUrl(slug) : STATUS_PAGES_URL, '↗ Open it again')
           ]
         : [friendlyError(result.summary)],
       next: result.ok ? spReturn : 'sp-components'
@@ -1233,9 +1240,8 @@ function InkWizardApp({ onExit }) {
   if (screen === 'sp-existing-actions') {
     const page = sp.existingPage || {};
     const slug = page.slug;
-    const view = page.public ? 'public' : 'private';
-    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${view}` : STATUS_PAGES_URL;
-    const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
+    const liveUrl = slug ? spViewUrl(slug, page.public) : STATUS_PAGES_URL;
+    const manageUrl = slug ? spManageUrl(slug) : STATUS_PAGES_URL;
     return h(OptionScreen, {
       title: `Customize ${page.title || 'status page'}`,
       lines: [
@@ -1282,8 +1288,8 @@ function InkWizardApp({ onExit }) {
   if (screen === 'sp-edit-menu') {
     const page = sp.existingPage || {};
     const slug = page.slug;
-    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${page.public ? 'public' : 'private'}` : STATUS_PAGES_URL;
-    const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
+    const liveUrl = slug ? spViewUrl(slug, page.public) : STATUS_PAGES_URL;
+    const manageUrl = slug ? spManageUrl(slug) : STATUS_PAGES_URL;
     const editError = (result) => {
       setResultScreen({ title: 'Update failed', lines: [friendlyError(result.summary)], next: 'sp-edit-menu' });
       setScreen('result');
