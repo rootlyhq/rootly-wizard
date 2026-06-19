@@ -402,23 +402,6 @@ export async function validateToken(token, baseUrl = DEFAULT_API_BASE_URL) {
   return response.json();
 }
 
-async function probeTokenValidation(token, baseUrl = DEFAULT_API_BASE_URL) {
-  const response = await fetch(new URL('/v1/users/me', baseUrl), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json'
-    },
-    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS)
-  });
-
-  const body = await response.text().catch(() => '');
-  return {
-    ok: response.ok,
-    status: response.status,
-    body
-  };
-}
-
 export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
   const registration = await resolveOAuthRegistration(baseUrl);
   const state = crypto.randomBytes(32).toString('base64url');
@@ -542,8 +525,6 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
     timeoutId.unref();
   });
 
-  console.log('Authorization received. Finalizing browser sign-in...');
-
   const tokenPayload = await exchangeOAuthCode({
     code: callbackResult.code,
     codeVerifier,
@@ -551,20 +532,14 @@ export async function startOAuthLogin(baseUrl = DEFAULT_API_BASE_URL) {
     baseUrl
   });
 
-  console.log(`OAuth token response: type=${tokenPayload?.token_type || 'unknown'} expires_in=${tokenPayload?.expires_in || 'unknown'} scope=${tokenPayload?.scope || '(none returned)'}`);
-
   const session = sessionToStoredShape(baseUrl, registration, tokenPayload);
-  console.log('Storing browser session securely...');
   const stored = await storeOAuthSession(session);
   if (!stored) {
     throw new Error('OAuth login succeeded, but the browser session could not be stored securely');
   }
 
-  console.log('Validating browser session access...');
   const userPayload = await validateToken(session.accessToken, baseUrl);
   if (!userPayload) {
-    const probe = await probeTokenValidation(session.accessToken, baseUrl);
-    console.log(`OAuth validation probe: ok=${probe.ok} status=${probe.status} body=${probe.body || '(empty)'}`);
     throw new Error('OAuth login succeeded, but token validation failed');
   }
 
