@@ -609,7 +609,7 @@ function InkWizardApp({ onExit }) {
               ? [
                   'Slack still uses the Rootly web flow.',
                   '',
-                  result.data?.url ? `Opened: ${result.data.url}` : 'Open the Slack setup page in Rootly.',
+                  result.data?.url ? hyperlink(result.data.url, '↗ Open Slack setup') : 'Open the Slack setup page in Rootly.',
                   '',
                   'Finish connecting Slack in your browser, then choose Continue to refresh your workspace status.'
                 ]
@@ -650,7 +650,7 @@ function InkWizardApp({ onExit }) {
           lines: result.ok
             ? [
                 `Opened ${option.value} in Rootly web.`,
-                ...(result.data?.url ? ['', result.data.url] : []),
+                ...(result.data?.url ? ['', hyperlink(result.data.url, `↗ Open ${option.value} setup`)] : []),
                 '',
                 `Finish connecting ${option.value} in your browser, then choose Continue to refresh your workspace status.`
               ]
