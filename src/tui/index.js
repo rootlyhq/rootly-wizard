@@ -1093,6 +1093,7 @@ function InkWizardApp({ onExit }) {
       title: 'Create a team',
       prompt: 'Enter the team name you want to create.',
       placeholder: 'Team name',
+      initialValue: 'Incident Response',
       onSubmit: async (value) => {
         setLoading(true);
         const result = await createTeamForTui({ name: value });
@@ -1446,8 +1447,8 @@ function InkWizardApp({ onExit }) {
       title: 'Customize further?',
       lines: ['Add optional details now, or skip and tweak everything later in the web app.'],
       options: [
-        { label: 'Add a website link', value: 'website' },
         { label: 'Skip — go to publish', value: 'skip' },
+        { label: 'Add a website link', value: 'website' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: (option) => {
