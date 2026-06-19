@@ -506,6 +506,41 @@ export async function getStatusPagesAction() {
   return { ok: true, data: { pages } };
 }
 
+// Partial update — only the keys present in `input` are sent, so editing one
+// field never resets the others.
+export async function updateStatusPageAction(input = {}) {
+  const { id } = input;
+  if (!id) {
+    return { ok: false, summary: 'A status page id is required to update.' };
+  }
+  const attrs = {};
+  if ('title' in input && input.title != null) attrs.title = String(input.title).trim();
+  if ('authenticationMethod' in input) {
+    const usePassword = input.authenticationMethod === 'password' && input.authenticationPassword;
+    attrs.authentication_method = usePassword ? 'password' : 'none';
+    if (usePassword) attrs.authentication_password = input.authenticationPassword;
+  }
+  if ('serviceIds' in input) attrs.service_ids = (input.serviceIds || []).map((x) => String(x));
+  if ('functionalityIds' in input) attrs.functionality_ids = (input.functionalityIds || []).map((x) => String(x));
+  if ('websiteUrl' in input) attrs.website_url = input.websiteUrl ? String(input.websiteUrl).trim() : '';
+  if ('publish' in input) attrs.enabled = Boolean(input.publish);
+
+  const api = await loadApiClient();
+  const payload = await api.updateStatusPage(id, attrs);
+  const a = payload?.data?.attributes || {};
+  return {
+    ok: true,
+    summary: 'Status page updated.',
+    data: {
+      id,
+      title: a.title || null,
+      public: Boolean(a.public),
+      published: Boolean(a.enabled),
+      slug: a.slug || null
+    }
+  };
+}
+
 export async function publishStatusPageAction({ id } = {}) {
   if (!id) {
     return { ok: false, summary: 'A status page id is required to publish.' };

@@ -11,7 +11,8 @@ import {
   createAlertSourceAction,
   createStatusPageAction,
   getStatusPagesAction,
-  publishStatusPageAction
+  publishStatusPageAction,
+  updateStatusPageAction
 } from './actions/setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './actions/testing.js';
 import { runOneShotSetupAction } from './actions/oneshot.js';
@@ -207,6 +208,14 @@ export async function publishStatusPageForTui(input) {
     return await publishStatusPageAction(input);
   } catch (error) {
     return { ok: false, summary: error?.message || 'The wizard could not publish the status page.' };
+  }
+}
+
+export async function updateStatusPageForTui(input) {
+  try {
+    return await updateStatusPageAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'The wizard could not update the status page.' };
   }
 }
 

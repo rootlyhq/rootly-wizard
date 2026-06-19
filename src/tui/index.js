@@ -35,6 +35,7 @@ import {
   loadStatusPageComponentsForTui,
   loadStatusPagesForTui,
   publishStatusPageForTui,
+  updateStatusPageForTui,
   createTestAlertForTui,
   createTestIncidentForTui,
   deleteTokenForTui,
@@ -194,7 +195,7 @@ function InkWizardApp({ onExit }) {
 
   // Load services/functionalities to offer as status-page components.
   useEffect(() => {
-    if (screen !== 'sp-components' || spComponents !== null) return undefined;
+    if ((screen !== 'sp-components' && screen !== 'sp-edit-components') || spComponents !== null) return undefined;
     let cancelled = false;
     setLoading(true);
     void (async () => {
@@ -1183,12 +1184,14 @@ function InkWizardApp({ onExit }) {
         'Publish makes it live; deeper customization happens in the Rootly web app.'
       ],
       options: [
+        { label: 'Edit settings', value: 'edit' },
         ...(page.published ? [] : [{ label: 'Publish it now', value: 'publish' }]),
-        { label: 'Open it in Rootly to edit', value: 'open' },
+        { label: 'Open it in Rootly (full editor)', value: 'open' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
         if (option.value === 'back') { setScreen('sp-pick-existing'); return; }
+        if (option.value === 'edit') { setScreen('sp-edit-menu'); return; }
         if (option.value === 'open') {
           setResultScreen({
             title: page.title || 'Status page',
@@ -1211,6 +1214,157 @@ function InkWizardApp({ onExit }) {
         setScreen('result');
       },
       onBack: () => setScreen('sp-pick-existing')
+    });
+  }
+
+  if (screen === 'sp-edit-menu') {
+    const page = sp.existingPage || {};
+    const slug = page.slug;
+    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${page.public ? 'public' : 'private'}` : STATUS_PAGES_URL;
+    const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
+    const editError = (result) => {
+      setResultScreen({ title: 'Update failed', lines: [friendlyError(result.summary)], next: 'sp-edit-menu' });
+      setScreen('result');
+    };
+    return h(OptionScreen, {
+      title: `Edit ${page.title || 'status page'}`,
+      lines: [`${page.public ? 'Public' : 'Internal'} · ${page.published ? 'published' : 'draft'}.`, '', 'Change one setting at a time — each is saved immediately.'],
+      options: [
+        { label: 'Rename', value: 'name' },
+        { label: 'Authentication', value: 'auth' },
+        { label: 'Components to show', value: 'components' },
+        { label: 'Website link', value: 'website' },
+        { label: page.published ? 'Unpublish (make it a draft)' : 'Publish now', value: 'toggle' },
+        { label: 'Done', value: 'done' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'done') {
+          setResultScreen({
+            title: 'Status page updated',
+            lines: [
+              `${page.title}`,
+              `${page.public ? 'Public' : 'Internal'} · ${page.published ? 'published' : 'draft'}`,
+              '',
+              hyperlink(page.published ? liveUrl : manageUrl, page.published ? '↗ View your status page' : '↗ Open it in Rootly')
+            ],
+            next: spReturn
+          });
+          setScreen('result');
+          return;
+        }
+        if (option.value === 'toggle') {
+          setLoading(true);
+          const result = await updateStatusPageForTui({ id: page.id, publish: !page.published });
+          setLoading(false);
+          if (result.ok) patchSp({ existingPage: { ...page, published: result.data.published, slug: result.data.slug || page.slug } });
+          else editError(result);
+          return;
+        }
+        setScreen(`sp-edit-${option.value}`);
+      },
+      onBack: () => setScreen('sp-existing-actions')
+    });
+  }
+
+  if (screen === 'sp-edit-name') {
+    const page = sp.existingPage || {};
+    return h(TextEntryScreen, {
+      title: 'Rename status page',
+      prompt: 'New name for the page.',
+      initialValue: page.title || '',
+      onSubmit: async (value) => {
+        setLoading(true);
+        const result = await updateStatusPageForTui({ id: page.id, title: value });
+        setLoading(false);
+        if (result.ok) patchSp({ existingPage: { ...page, title: result.data.title || value, slug: result.data.slug || page.slug } });
+        setScreen('sp-edit-menu');
+      },
+      onBack: () => setScreen('sp-edit-menu')
+    });
+  }
+
+  if (screen === 'sp-edit-auth') {
+    const page = sp.existingPage || {};
+    return h(OptionScreen, {
+      title: 'Page authentication',
+      lines: ['Who can view the page?'],
+      options: [
+        { label: 'No authentication', value: 'none' },
+        { label: 'Password protect', value: 'password' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') { setScreen('sp-edit-menu'); return; }
+        if (option.value === 'password') { setScreen('sp-edit-password'); return; }
+        setLoading(true);
+        await updateStatusPageForTui({ id: page.id, authenticationMethod: 'none' });
+        setLoading(false);
+        setScreen('sp-edit-menu');
+      },
+      onBack: () => setScreen('sp-edit-menu')
+    });
+  }
+
+  if (screen === 'sp-edit-password') {
+    const page = sp.existingPage || {};
+    return h(TextEntryScreen, {
+      title: 'Set a page password',
+      prompt: 'Visitors will need this password to view the page.',
+      placeholder: 'Password',
+      hidden: true,
+      onSubmit: async (value) => {
+        setLoading(true);
+        await updateStatusPageForTui({ id: page.id, authenticationMethod: 'password', authenticationPassword: value });
+        setLoading(false);
+        setScreen('sp-edit-menu');
+      },
+      onBack: () => setScreen('sp-edit-auth')
+    });
+  }
+
+  if (screen === 'sp-edit-components') {
+    const page = sp.existingPage || {};
+    const options = spComponents?.components || [];
+    if (!options.length) {
+      return h(OptionScreen, {
+        title: 'Components to show',
+        lines: ['No services or functionalities exist yet to show on the page.', '', 'Add some in the Rootly web app, then come back.'],
+        options: [{ label: 'Back', value: 'back' }],
+        onSelect: () => setScreen('sp-edit-menu'),
+        onBack: () => setScreen('sp-edit-menu')
+      });
+    }
+    return h(MultiSelectScreen, {
+      title: 'Components to show on the page',
+      options,
+      onSubmit: async (selected) => {
+        setLoading(true);
+        await updateStatusPageForTui({
+          id: page.id,
+          serviceIds: selected.filter((o) => o.value.startsWith('service:')).map((o) => o.value.slice(8)),
+          functionalityIds: selected.filter((o) => o.value.startsWith('functionality:')).map((o) => o.value.slice(14))
+        });
+        setLoading(false);
+        setScreen('sp-edit-menu');
+      },
+      onBack: () => setScreen('sp-edit-menu')
+    });
+  }
+
+  if (screen === 'sp-edit-website') {
+    const page = sp.existingPage || {};
+    return h(TextEntryScreen, {
+      title: 'Website link',
+      prompt: 'Link back to your main site (leave blank to clear it).',
+      placeholder: 'https://yourcompany.com',
+      allowEmpty: true,
+      onSubmit: async (value) => {
+        setLoading(true);
+        await updateStatusPageForTui({ id: page.id, websiteUrl: value });
+        setLoading(false);
+        setScreen('sp-edit-menu');
+      },
+      onBack: () => setScreen('sp-edit-menu')
     });
   }
 
