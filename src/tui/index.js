@@ -200,7 +200,7 @@ function InkWizardApp({ onExit }) {
     const publicPage = (spExisting.pages || []).find((p) => p.public);
     if (publicPage) {
       setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), existingPage: publicPage } }));
-      setScreen('sp-existing-actions');
+      setScreen('sp-edit-menu'); // jump straight into editing the public page
     } else {
       setScreen('sp-name');
     }
@@ -1206,7 +1206,9 @@ function InkWizardApp({ onExit }) {
       lines: [
         `${page.public ? 'Public' : 'Internal'} · ${page.published ? 'published' : 'draft'}.`,
         '',
-        'Publish makes it live; deeper customization happens in the Rootly web app.'
+        page.published
+          ? 'It’s live. Edit its settings here, or open the full editor in Rootly.'
+          : 'Publish makes it live. Edit its settings here, or open the full editor in Rootly.'
       ],
       options: [
         { label: 'Edit settings', value: 'edit' },
@@ -1287,7 +1289,7 @@ function InkWizardApp({ onExit }) {
         }
         setScreen(`sp-edit-${option.value}`);
       },
-      onBack: () => setScreen('sp-existing-actions')
+      onBack: () => setScreen(sp.directPublic ? spReturn : 'sp-existing-actions')
     });
   }
 
