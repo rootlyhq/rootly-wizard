@@ -193,6 +193,20 @@ function InkWizardApp({ onExit }) {
     };
   }, [screen, spExisting]);
 
+  // "Set up your public status page" jumps straight to the seeded public page
+  // (no picker, no create-vs-customize branch). If none exists, fall to create.
+  useEffect(() => {
+    if (screen !== 'sp-start' || spExisting === null || !formState.sp?.directPublic) return undefined;
+    const publicPage = (spExisting.pages || []).find((p) => p.public);
+    if (publicPage) {
+      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), existingPage: publicPage } }));
+      setScreen('sp-existing-actions');
+    } else {
+      setScreen('sp-name');
+    }
+    return undefined;
+  }, [screen, spExisting]);
+
   // Load services/functionalities to offer as status-page components.
   useEffect(() => {
     if ((screen !== 'sp-components' && screen !== 'sp-edit-components') || spComponents !== null) return undefined;
@@ -758,10 +772,10 @@ function InkWizardApp({ onExit }) {
       lines: [
         'Your core Rootly setup is in place — teams, on-call, escalation, and alerting.',
         '',
-        'Want a status page to keep customers informed? You can set one up now.'
+        'Your account comes with a public status page — set it up to keep customers informed.'
       ],
       options: [
-        { label: 'Create a status page', value: 'status-page' },
+        { label: 'Set up your public status page', value: 'status-page' },
         { label: 'Continue configuring the platform', value: 'configure' },
         { label: 'Talk to our founder JJ (seriously)', value: 'chat-ceo' },
         { label: 'Book a demo with sales', value: 'book-demo' },
@@ -769,8 +783,9 @@ function InkWizardApp({ onExit }) {
       ],
       onSelect: async (option) => {
         if (option.value === 'status-page') {
+          // Go straight to the seeded public page (no picker, no create branch).
           setSpExisting(null);
-          setFormState({ sp: { isPublic: true, returnTo: 'menu' } });
+          setFormState({ sp: { isPublic: true, directPublic: true, returnTo: 'menu' } });
           setScreen('sp-start');
           return;
         }
@@ -1117,8 +1132,10 @@ function InkWizardApp({ onExit }) {
   const spReturn = sp.returnTo || 'menu';
 
   if (screen === 'sp-start') {
-    if (spExisting === null) {
-      return h(LoadingScreen, { title: 'Status pages', detail: 'Checking for an existing page…' });
+    // While loading, or when jumping straight to the public page, show the loader
+    // (the directPublic effect navigates away once pages are loaded).
+    if (spExisting === null || sp.directPublic) {
+      return h(LoadingScreen, { title: 'Status page', detail: 'Opening your public status page…' });
     }
     const existing = spExisting.pages || [];
     if (!existing.length) {
@@ -1191,7 +1208,7 @@ function InkWizardApp({ onExit }) {
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
-        if (option.value === 'back') { setScreen('sp-pick-existing'); return; }
+        if (option.value === 'back') { setScreen(sp.directPublic ? spReturn : 'sp-pick-existing'); return; }
         if (option.value === 'edit') { setScreen('sp-edit-menu'); return; }
         if (option.value === 'open') {
           setResultScreen({
@@ -1214,7 +1231,7 @@ function InkWizardApp({ onExit }) {
         });
         setScreen('result');
       },
-      onBack: () => setScreen('sp-pick-existing')
+      onBack: () => setScreen(sp.directPublic ? spReturn : 'sp-pick-existing')
     });
   }
 
