@@ -199,11 +199,10 @@ function InkWizardApp({ onExit }) {
     if (screen !== 'sp-start' || spExisting === null || !formState.sp?.directPublic) return undefined;
     const publicPage = (spExisting.pages || []).find((p) => p.public);
     if (publicPage) {
-      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), existingPage: publicPage } }));
-      setScreen('sp-edit-menu'); // jump straight into editing the public page
-    } else {
-      setScreen('sp-name');
+      // Walk them through editing the existing public page (update, not create).
+      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), editId: publicPage.id, existingPage: publicPage, title: publicPage.title } }));
     }
+    setScreen('sp-name'); // no public page → create one; otherwise walk through editing it
     return undefined;
   }, [screen, spExisting]);
 
@@ -1399,15 +1398,17 @@ function InkWizardApp({ onExit }) {
     const orgName = state?.teams?.workspace?.name;
     const defaultName = orgName ? `${orgName} Status` : 'Status Page';
     return h(TextEntryScreen, {
-      title: 'Create a status page',
-      prompt: `Name your ${sp.isPublic === false ? 'internal' : 'public'} status page.`,
+      title: sp.editId ? 'Set up your public status page' : 'Create a status page',
+      prompt: sp.editId
+        ? 'Confirm or change the name of your status page.'
+        : `Name your ${sp.isPublic === false ? 'internal' : 'public'} status page.`,
       placeholder: 'e.g. Acme Status',
       initialValue: sp.title || defaultName,
       onSubmit: (value) => {
         patchSp({ title: value });
         setScreen('sp-auth');
       },
-      onBack: () => setScreen('sp-start')
+      onBack: () => setScreen(sp.directPublic ? spReturn : 'sp-start')
     });
   }
 
@@ -1515,34 +1516,45 @@ function InkWizardApp({ onExit }) {
       onSelect: async (option) => {
         if (option.value === 'back') { setScreen('sp-customize'); return; }
         const publish = option.value === 'publish';
-        setLoading(true);
-        const result = await createStatusPageForTui({
+        const fields = {
           title: sp.title,
-          isPublic: sp.isPublic !== false,
           authenticationMethod: sp.authMethod || 'none',
           authenticationPassword: sp.authPassword || null,
           serviceIds: sp.serviceIds || [],
           functionalityIds: sp.functionalityIds || [],
           websiteUrl: sp.websiteUrl || null,
           publish
-        });
+        };
+        setLoading(true);
+        // editId set → we're walking through an existing page (update); else create.
+        const result = sp.editId
+          ? await updateStatusPageForTui({ id: sp.editId, ...fields })
+          : await createStatusPageForTui({ isPublic: sp.isPublic !== false, ...fields });
         setLoading(false);
-        const slug = result.data?.slug;
-        const view = result.data?.public ? 'public' : 'private';
+        const slug = result.data?.slug || sp.existingPage?.slug;
+        const isPublic = result.data?.public ?? (sp.isPublic !== false);
+        const view = isPublic ? 'public' : 'private';
         const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${view}` : STATUS_PAGES_URL;
         const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
+        const componentCount = (sp.serviceIds?.length || 0) + (sp.functionalityIds?.length || 0);
+        // Open the live page in the browser so there's no URL to copy/paste.
+        if (result.ok && publish) {
+          await openExternalUrlForTui(liveUrl);
+        }
         setResultScreen({
           title: result.ok ? (publish ? 'Status page published' : 'Saved as draft') : 'Status page needs attention',
           lines: result.ok
             ? [
                 `${result.data?.title || sp.title}`,
-                `${result.data?.public ? 'Public' : 'Internal'} · ${result.data?.authenticationMethod === 'password' ? 'password-protected' : 'open'} · ${result.data?.componentCount || 0} component(s)`,
+                `${isPublic ? 'Public' : 'Internal'} · ${sp.authMethod === 'password' ? 'password-protected' : 'open'} · ${componentCount} component(s)`,
                 '',
                 publish
-                  ? hyperlink(liveUrl, '↗ View your status page')
+                  ? 'Opened your status page in the browser.'
                   : hyperlink(manageUrl, '↗ Open it in Rootly to publish'),
                 '',
-                publish ? 'Customize it anytime in the Rootly web app.' : 'It is unpublished — publish it from the web app when ready.'
+                publish
+                  ? hyperlink(liveUrl, '↗ Open it again')
+                  : 'It is unpublished — publish it from the web app when ready.'
               ]
             : [friendlyError(result.summary)],
           next: result.ok ? (sp.returnTo || 'menu') : 'sp-publish'
