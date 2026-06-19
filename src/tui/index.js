@@ -890,13 +890,20 @@ function InkWizardApp({ onExit }) {
     return h(OptionScreen, {
       title: 'Before we set up',
       lines,
-      options: [
-        { label: 'Connect Slack', value: 'slack' },
-        // Only offer to add a number when the user doesn't already have one.
-        ...(hasPhone ? [] : [{ label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' }]),
-        { label: 'Continue setup', value: 'continue' },
-        { label: 'Back to menu', value: 'back' }
-      ],
+      // With a phone on file, Continue is the default (first). Without one, lead
+      // with adding a number — otherwise the test alert can't page anyone.
+      options: hasPhone
+        ? [
+            { label: 'Continue setup', value: 'continue' },
+            { label: 'Connect Slack', value: 'slack' },
+            { label: 'Back to menu', value: 'back' }
+          ]
+        : [
+            { label: 'Add a phone number (recommended — so the test alert pages you)', value: 'phone' },
+            { label: 'Continue setup', value: 'continue' },
+            { label: 'Connect Slack', value: 'slack' },
+            { label: 'Back to menu', value: 'back' }
+          ],
       onSelect: async (option) => {
         if (option.value === 'slack') {
           await openHandoff('Slack', 'Connect Slack', 'Slack setup');
