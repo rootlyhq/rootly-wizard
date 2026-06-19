@@ -65,7 +65,11 @@ function callbackPage({ ok, title, message }) {
     h1, h1 .tick { animation: none; transform: none; opacity: 1; }
   }
   p { margin: 0 auto; max-width: 300px; line-height: 1.6; font-size: 15px; color: #5C5870; }
-  .hint { margin-top: 28px; font-size: 13px; color: #8C88A0; }
+  .close-btn { margin-top: 28px; appearance: none; border: 0; cursor: pointer; font: inherit;
+    font-weight: 600; font-size: 14px; color: #FFFFFF; background: #7C5CE6;
+    padding: 11px 24px; border-radius: 10px; transition: background .15s ease; }
+  .close-btn:hover { background: #6B4FD6; }
+  .hint { margin-top: 16px; font-size: 13px; color: #8C88A0; }
   @media (prefers-color-scheme: dark) {
     body { background: #0D0C12; color: #ECEAF5; }
     .card { background: #16151D; border-color: #272534; box-shadow: none; }
@@ -79,8 +83,25 @@ function callbackPage({ ok, title, message }) {
     ${logo}
     <h1><span class="tick">${glyph}</span>${escapeHtml(title)}</h1>
     <p>${escapeHtml(message)}</p>
-    <p class="hint">You can close this tab and return to the terminal.</p>
+    ${ok ? '<button type="button" class="close-btn" id="close">Close tab</button>' : ''}
+    <p class="hint" id="hint">${ok ? 'Then return to the terminal.' : 'Return to the terminal and try again.'}</p>
   </div>
+  <script>
+    var btn = document.getElementById('close');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        // Best-effort: browsers only allow closing tabs opened by script. The
+        // window.open('','_self') trick lets some browsers close the current tab;
+        // if it's still here a moment later, fall back to a manual-close hint.
+        window.open('', '_self');
+        window.close();
+        setTimeout(function () {
+          var h = document.getElementById('hint');
+          if (h) h.textContent = 'You can close this tab and return to the terminal.';
+        }, 250);
+      });
+    }
+  </script>
 </body>
 </html>`;
 }
