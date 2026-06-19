@@ -1137,6 +1137,42 @@ function InkWizardApp({ onExit }) {
   const patchSp = (patch) => setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), ...patch } }));
   const spReturn = sp.returnTo || 'menu';
 
+  // Create-or-update the page (always published), then open it in the browser so
+  // there's no URL to copy. Further tweaks (incl. disabling) happen in the web UI.
+  const finalizeStatusPage = async () => {
+    const fields = {
+      title: sp.title,
+      authenticationMethod: sp.authMethod || 'none',
+      authenticationPassword: sp.authPassword || null,
+      serviceIds: sp.serviceIds || [],
+      functionalityIds: sp.functionalityIds || [],
+      publish: true
+    };
+    setLoading(true);
+    const result = sp.editId
+      ? await updateStatusPageForTui({ id: sp.editId, ...fields })
+      : await createStatusPageForTui({ isPublic: sp.isPublic !== false, ...fields });
+    setLoading(false);
+    const slug = result.data?.slug || sp.existingPage?.slug;
+    const isPublic = result.data?.public ?? (sp.isPublic !== false);
+    const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${isPublic ? 'public' : 'private'}` : STATUS_PAGES_URL;
+    if (result.ok) await openExternalUrlForTui(liveUrl);
+    setResultScreen({
+      title: result.ok ? 'Your status page is live' : 'Status page needs attention',
+      lines: result.ok
+        ? [
+            `${result.data?.title || sp.title}`,
+            '',
+            'Opened your status page in the browser.',
+            '',
+            hyperlink(liveUrl, '↗ Open it again to edit further in Rootly')
+          ]
+        : [friendlyError(result.summary)],
+      next: result.ok ? spReturn : 'sp-components'
+    });
+    setScreen('result');
+  };
+
   if (screen === 'sp-start') {
     // While loading, or when jumping straight to the public page, show the loader
     // (the directPublic effect navigates away once pages are loaded).
@@ -1445,14 +1481,35 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'sp-components') {
+    const count = (sp.serviceIds?.length || 0) + (sp.functionalityIds?.length || 0);
+    return h(OptionScreen, {
+      title: 'Components to show on the page',
+      lines: count
+        ? [`${count} component${count === 1 ? '' : 's'} selected.`, '', 'Add more, or publish your page.']
+        : ['Components let visitors see the status of your services.', '', 'Add some now, or just publish — you can add more later.'],
+      options: [
+        { label: 'Go to publish', value: 'publish' },
+        { label: 'Add a component', value: 'add' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') { setScreen('sp-auth'); return; }
+        if (option.value === 'add') { setScreen('sp-components-pick'); return; }
+        await finalizeStatusPage();
+      },
+      onBack: () => setScreen('sp-auth')
+    });
+  }
+
+  if (screen === 'sp-components-pick') {
     const options = spComponents?.components || [];
     if (!options.length) {
       return h(OptionScreen, {
-        title: 'Components to show',
+        title: 'Add a component',
         lines: ['No services or functionalities exist yet to show on the page.', '', 'You can add components later in the Rootly web app.'],
-        options: [{ label: 'Continue', value: 'continue' }, { label: 'Back', value: 'back' }],
-        onSelect: (option) => setScreen(option.value === 'back' ? 'sp-auth' : 'sp-customize'),
-        onBack: () => setScreen('sp-auth')
+        options: [{ label: 'Back', value: 'back' }],
+        onSelect: () => setScreen('sp-components'),
+        onBack: () => setScreen('sp-components')
       });
     }
     return h(MultiSelectScreen, {
@@ -1463,105 +1520,9 @@ function InkWizardApp({ onExit }) {
           serviceIds: selected.filter((o) => o.value.startsWith('service:')).map((o) => o.value.slice(8)),
           functionalityIds: selected.filter((o) => o.value.startsWith('functionality:')).map((o) => o.value.slice(14))
         });
-        setScreen('sp-customize');
-      },
-      onBack: () => setScreen('sp-auth')
-    });
-  }
-
-  if (screen === 'sp-customize') {
-    return h(OptionScreen, {
-      title: 'Customize further?',
-      lines: ['Add optional details now, or skip and tweak everything later in the web app.'],
-      options: [
-        { label: 'Skip — go to publish', value: 'skip' },
-        { label: 'Add a website link', value: 'website' },
-        { label: 'Back', value: 'back' }
-      ],
-      onSelect: (option) => {
-        if (option.value === 'back') { setScreen('sp-components'); return; }
-        setScreen(option.value === 'website' ? 'sp-website' : 'sp-publish');
+        setScreen('sp-components');
       },
       onBack: () => setScreen('sp-components')
-    });
-  }
-
-  if (screen === 'sp-website') {
-    return h(TextEntryScreen, {
-      title: 'Website link',
-      prompt: 'A link back to your main site, shown on the page (optional — leave blank to skip).',
-      placeholder: 'https://yourcompany.com',
-      allowEmpty: true,
-      onSubmit: (value) => {
-        patchSp({ websiteUrl: value });
-        setScreen('sp-publish');
-      },
-      onBack: () => setScreen('sp-customize')
-    });
-  }
-
-  if (screen === 'sp-publish') {
-    return h(OptionScreen, {
-      title: 'Ready to publish?',
-      lines: [
-        `${sp.title || 'Your status page'} — ${sp.isPublic === false ? 'internal' : 'public'}, ${sp.authMethod === 'password' ? 'password-protected' : 'open'}.`,
-        '',
-        'Publish makes it live now. Save as draft keeps it unpublished until you publish it later.'
-      ],
-      options: [
-        { label: 'Publish now', value: 'publish' },
-        { label: 'Save as draft', value: 'draft' },
-        { label: 'Back', value: 'back' }
-      ],
-      onSelect: async (option) => {
-        if (option.value === 'back') { setScreen('sp-customize'); return; }
-        const publish = option.value === 'publish';
-        const fields = {
-          title: sp.title,
-          authenticationMethod: sp.authMethod || 'none',
-          authenticationPassword: sp.authPassword || null,
-          serviceIds: sp.serviceIds || [],
-          functionalityIds: sp.functionalityIds || [],
-          websiteUrl: sp.websiteUrl || null,
-          publish
-        };
-        setLoading(true);
-        // editId set → we're walking through an existing page (update); else create.
-        const result = sp.editId
-          ? await updateStatusPageForTui({ id: sp.editId, ...fields })
-          : await createStatusPageForTui({ isPublic: sp.isPublic !== false, ...fields });
-        setLoading(false);
-        const slug = result.data?.slug || sp.existingPage?.slug;
-        const isPublic = result.data?.public ?? (sp.isPublic !== false);
-        const view = isPublic ? 'public' : 'private';
-        const liveUrl = slug ? `${STATUS_PAGES_URL}/${slug}/${view}` : STATUS_PAGES_URL;
-        const manageUrl = slug ? `${STATUS_PAGES_URL}/${slug}` : STATUS_PAGES_URL;
-        const componentCount = (sp.serviceIds?.length || 0) + (sp.functionalityIds?.length || 0);
-        // Open the live page in the browser so there's no URL to copy/paste.
-        if (result.ok && publish) {
-          await openExternalUrlForTui(liveUrl);
-        }
-        setResultScreen({
-          title: result.ok ? (publish ? 'Status page published' : 'Saved as draft') : 'Status page needs attention',
-          lines: result.ok
-            ? [
-                `${result.data?.title || sp.title}`,
-                `${isPublic ? 'Public' : 'Internal'} · ${sp.authMethod === 'password' ? 'password-protected' : 'open'} · ${componentCount} component(s)`,
-                '',
-                publish
-                  ? 'Opened your status page in the browser.'
-                  : hyperlink(manageUrl, '↗ Open it in Rootly to publish'),
-                '',
-                publish
-                  ? hyperlink(liveUrl, '↗ Open it again')
-                  : 'It is unpublished — publish it from the web app when ready.'
-              ]
-            : [friendlyError(result.summary)],
-          next: result.ok ? (sp.returnTo || 'menu') : 'sp-publish'
-        });
-        setScreen('result');
-      },
-      onBack: () => setScreen('sp-customize')
     });
   }
 
