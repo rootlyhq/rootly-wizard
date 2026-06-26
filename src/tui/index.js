@@ -450,6 +450,7 @@ function InkWizardApp({ onExit }) {
     return h(ResultScreen, {
       title: resultScreen.title,
       lines: resultScreen.lines,
+      actions: resultScreen.actions || [],
       onContinue: () => {
         // Results that return to the menu may follow a mutation; refresh the
         // workspace snapshot so coverage reflects the change.
@@ -784,7 +785,7 @@ function InkWizardApp({ onExit }) {
         if (option.value === 'status-page') {
           // Go straight to the seeded public page (no picker, no create branch).
           setSpExisting(null);
-          setFormState({ sp: { isPublic: true, directPublic: true, returnTo: 'menu' } });
+          setFormState({ sp: { isPublic: true, directPublic: true, returnTo: 'setup-complete' } });
           setScreen('sp-start');
           return;
         }
@@ -1170,11 +1171,13 @@ function InkWizardApp({ onExit }) {
         ? [
             `${result.data?.title || sp.title}`,
             '',
-            'Opened your status page in Rootly — preview it and customize it there.',
-            '',
-            hyperlink(slug ? spManageUrl(slug) : STATUS_PAGES_URL, '↗ Open it again')
+            'Opened your status page in Rootly — preview it and customize it there.'
           ]
         : [friendlyError(result.summary)],
+      actions: result.ok
+        ? [{ label: 'Open the status page again', onSelect: () => openExternalUrlForTui(liveUrl) }]
+        : [],
+      continueLabel: result.ok ? 'Continue' : undefined,
       next: result.ok ? spReturn : 'sp-components'
     });
     setScreen('result');
