@@ -40,10 +40,19 @@ function computeWindow(items, selectedIndex, maxRows) {
   return { start, end };
 }
 
-export function MultiSelectList({ options, onSubmit, onCancel, title }) {
+export function MultiSelectList({ options, onSubmit, onCancel, title, initialSelectedValues = [] }) {
   const { rows, columns } = useWindowSize();
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [selected, setSelected] = useState(new Set());
+  // Pre-check options whose value is already selected (e.g. components already
+  // on the page) so submitting preserves them instead of replacing the set.
+  const [selected, setSelected] = useState(() => {
+    const wanted = new Set(initialSelectedValues);
+    const set = new Set();
+    options.forEach((option, index) => {
+      if (wanted.has(option.value)) set.add(index);
+    });
+    return set;
+  });
   const contentWidth = Math.max(30, Math.min(72, columns - 12));
   const textWidth = Math.max(10, contentWidth - 10);
 

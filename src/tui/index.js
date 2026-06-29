@@ -1563,7 +1563,7 @@ function InkWizardApp({ onExit }) {
       lines,
       options: [
         { label: 'Go to publish', value: 'publish' },
-        { label: 'Add a component', value: 'add' },
+        { label: count ? 'Add or remove components' : 'Add a component', value: 'add' },
         { label: 'Create your own component', value: 'custom' },
         { label: 'Back', value: 'back' }
       ],
@@ -1619,8 +1619,14 @@ function InkWizardApp({ onExit }) {
       });
     }
     return h(MultiSelectScreen, {
-      title: 'Components to show on the page',
+      title: 'Toggle components to show on the page (checked = added)',
       options,
+      // Pre-check what's already on the page so the user can uncheck to remove
+      // and check to add — submitting applies the full set.
+      initialSelectedValues: [
+        ...(sp.serviceIds || []).map((id) => `service:${id}`),
+        ...(sp.functionalityIds || []).map((id) => `functionality:${id}`)
+      ],
       onSubmit: (selected) => {
         patchSp({
           serviceIds: selected.filter((o) => o.value.startsWith('service:')).map((o) => o.value.slice(8)),
