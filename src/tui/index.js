@@ -1061,15 +1061,20 @@ function InkWizardApp({ onExit }) {
       value: user.id
     }));
 
-    // No directory (e.g. an OAuth session that can't read /v1/users): run anyway
-    // and let the chain seed the current identity so the rotation isn't empty.
-    if (!options.length) {
+    // With no directory (an OAuth session can't list /v1/users) or only the
+    // signed-in user available, a check/uncheck list of one is pointless — just
+    // confirm and add that user (the chain puts them on call). Show the
+    // multiselect only when there are several people to choose from.
+    if (options.length <= 1) {
+      const onlyUser = options[0];
       return h(OptionScreen, {
         title: 'Quick start',
         lines: [
-          directoryUsers?.userLookupUnavailable
-            ? 'This sign-in can’t list Rootly users, so members can’t be picked. Setup will still create the team and put the current identity on call.'
-            : 'No users were found to add. Setup will create the team with the current identity on call.'
+          onlyUser
+            ? 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
+            : directoryUsers?.userLookupUnavailable
+              ? 'This sign-in can’t list other Rootly users, so just you will be added to the team and put on call.'
+              : 'No other users to add — just you will be added to the team and put on call.'
         ],
         options: [
           { label: 'Run setup', value: 'run' },
@@ -1080,7 +1085,7 @@ function InkWizardApp({ onExit }) {
             setScreen('menu');
             return;
           }
-          setFormState({ oneShotMemberIds: [] });
+          setFormState({ oneShotMemberIds: onlyUser ? [onlyUser.value] : [] });
           setScreen('one-shot-running');
         },
         onBack: () => setScreen('menu')
@@ -1695,6 +1700,37 @@ function InkWizardApp({ onExit }) {
         onSelect: (option) => {
           if (option.value === 'email') setScreen('add-team-members');
           else setScreen('general-menu');
+        },
+        onBack: () => setScreen('general-menu')
+      });
+    }
+
+    // Only one user available (e.g. an OAuth session that can only see the
+    // signed-in user) — confirm-and-add rather than a 1-item check/uncheck.
+    if (options.length === 1) {
+      const onlyUser = options[0];
+      return h(OptionScreen, {
+        title: selectedTeam ? `Add members to ${selectedTeam.name}` : 'Add team members',
+        lines: [`${onlyUser.label} is the only user available to add.`],
+        options: [
+          { label: `Add ${onlyUser.label}`, value: 'add' },
+          { label: 'Invite someone else by email', value: 'email' },
+          { label: 'Back', value: 'back' }
+        ],
+        onSelect: async (option) => {
+          if (option.value === 'back') { setScreen('general-menu'); return; }
+          if (option.value === 'email') { setScreen('add-team-members'); return; }
+          setLoading(true);
+          const result = await addTeamMembersByIdsForTui({ teamId: selectedTeam?.id, userIds: [onlyUser.value] });
+          setLoading(false);
+          setResultScreen({
+            title: result.ok ? 'Team members added' : 'Team members need attention',
+            lines: result.ok
+              ? [`Team: ${selectedTeam?.name || 'Unknown'}`, `Added as members: ${onlyUser.label}`]
+              : [friendlyError(result.summary)],
+            next: 'menu'
+          });
+          setScreen('result');
         },
         onBack: () => setScreen('general-menu')
       });
