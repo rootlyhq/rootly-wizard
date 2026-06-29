@@ -482,7 +482,6 @@ function InkWizardApp({ onExit }) {
         { label: 'Inspect: status, teams, schedules', value: 'inspect' },
         { label: 'Set up MCP / IDE', value: 'mcp' },
         { label: 'Chat with us', value: 'chat' },
-        { label: 'Switch sign-in', value: 'auth' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: (option) => {
@@ -512,10 +511,6 @@ function InkWizardApp({ onExit }) {
         }
         if (option.value === 'mcp') {
           setScreen('mcp-menu');
-          return;
-        }
-        if (option.value === 'auth') {
-          setScreen('auth-method');
           return;
         }
         setScreen('menu');
