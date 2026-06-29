@@ -501,7 +501,11 @@ export async function getStatusPagesAction() {
     title: p.attributes?.title || p.attributes?.public_title || '(untitled)',
     public: Boolean(p.attributes?.public),
     published: Boolean(p.attributes?.enabled),
-    slug: p.attributes?.slug || null
+    slug: p.attributes?.slug || null,
+    // Components already attached, so the wizard can show them and not drop
+    // them when re-publishing (service_ids/functionality_ids replace the set).
+    serviceIds: (p.attributes?.service_ids || []).map((id) => String(id)),
+    functionalityIds: (p.attributes?.functionality_ids || []).map((id) => String(id))
   }));
   return { ok: true, data: { pages } };
 }

@@ -15,16 +15,17 @@ export async function getStatusPageComponentsAction() {
   return { ok: true, data: { components } };
 }
 
-// Create a custom status-page component. Status pages are built from services /
-// functionalities, so a typed-in component becomes a new functionality, then
-// gets added to the page by id. Returns the encoded component for the picker.
+// Create a custom status-page component. A typed-in component becomes a new
+// Service (each service carries its own operational status, so it renders as a
+// component on the public page), then gets added to the page by id. Returns the
+// encoded component for the picker.
 export async function createCustomComponentAction({ name }) {
   const clean = String(name || '').trim();
   if (!clean) {
     return { ok: false, summary: 'A component name is required.' };
   }
   const api = await loadApiClient();
-  const payload = await api.createFunctionality({ name: clean });
+  const payload = await api.createService({ name: clean });
   const id = payload?.data?.id;
   if (!id) {
     return { ok: false, summary: 'Rootly did not return the new component.' };
@@ -34,7 +35,7 @@ export async function createCustomComponentAction({ name }) {
     data: {
       id,
       name: payload?.data?.attributes?.name || clean,
-      component: { label: `${payload?.data?.attributes?.name || clean} · functionality`, value: `functionality:${id}` }
+      component: { label: `${payload?.data?.attributes?.name || clean} · service`, value: `service:${id}` }
     }
   };
 }

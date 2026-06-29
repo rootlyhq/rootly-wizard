@@ -96,6 +96,18 @@ export class RootlyApiClient {
     });
   }
 
+  async createService(attributes) {
+    return this.request('/v1/services', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'services',
+          attributes
+        }
+      }
+    });
+  }
+
   async listEnvironments() {
     return this.request('/v1/environments');
   }

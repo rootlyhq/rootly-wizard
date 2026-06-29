@@ -201,7 +201,7 @@ function InkWizardApp({ onExit }) {
     const publicPage = (spExisting.pages || []).find((p) => p.public);
     if (publicPage) {
       // Walk them through editing the existing public page (update, not create).
-      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), editId: publicPage.id, existingPage: publicPage, title: publicPage.title } }));
+      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), editId: publicPage.id, existingPage: publicPage, title: publicPage.title, serviceIds: publicPage.serviceIds || [], functionalityIds: publicPage.functionalityIds || [] } }));
     }
     setScreen('sp-name'); // no public page → create one; otherwise walk through editing it
     return undefined;
@@ -1589,9 +1589,9 @@ function InkWizardApp({ onExit }) {
         const result = await createCustomComponentForTui({ name });
         setLoading(false);
         if (result.ok) {
-          // Add it to the page selection and to the component list so it shows
-          // up (checked) alongside the existing services/functionalities.
-          patchSp({ functionalityIds: [...(sp.functionalityIds || []), result.data.id] });
+          // The custom component is a Service — add its id to serviceIds and to
+          // the component list so it shows alongside the existing components.
+          patchSp({ serviceIds: [...(sp.serviceIds || []), result.data.id] });
           setSpComponents((prev) => ({ components: [...(prev?.components || []), result.data.component] }));
           setScreen('sp-components');
           return;

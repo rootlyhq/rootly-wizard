@@ -1,4 +1,4 @@
-import { createElement as h, useState } from 'react';
+import { createElement as h, useState, useEffect } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import { AppShell } from '../components/AppShell.js';
 import { palette, glyphs, HINTS } from '../theme.js';
@@ -17,6 +17,12 @@ export function TextEntryScreen({
 }) {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState('');
+  // Blinking caret so a prefilled value reads as an editable field, not text.
+  const [caretOn, setCaretOn] = useState(true);
+  useEffect(() => {
+    const id = setInterval(() => setCaretOn((on) => !on), 530);
+    return () => clearInterval(id);
+  }, []);
   const { columns } = useWindowSize();
   // Fixed-width field so the box doesn't grow or jitter as you type, and long
   // values (API tokens) scroll on one line instead of wrapping inside the box.
@@ -75,11 +81,12 @@ export function TextEntryScreen({
         h(
           Box,
           { width: fieldWidth },
-          h(
-            Text,
-            { color: isEmpty ? palette.muted : palette.text, wrap: 'truncate-start' },
-            isEmpty ? (placeholder || ' ') : display
-          )
+          // Typed value (truncate-start so long values show their tail), then a
+          // blinking block caret at the insertion point, then ghosted
+          // placeholder text when the field is still empty.
+          isEmpty ? null : h(Text, { color: palette.text, wrap: 'truncate-start' }, display),
+          h(Text, { color: palette.brand, bold: true }, caretOn ? '█' : ' '),
+          isEmpty ? h(Text, { color: palette.muted }, placeholder || '') : null
         )
       ),
       // Validation error, right under the field.
