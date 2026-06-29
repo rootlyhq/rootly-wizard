@@ -111,6 +111,18 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
   if (title) {
     children.push(h(Box, { key: 'title', marginBottom: 1 }, h(Text, { color: palette.muted }, title)));
   }
+  // Always-visible instruction — the toggle/confirm model isn't obvious from the
+  // checkboxes alone, so spell it out above the list.
+  children.push(
+    h(
+      Box,
+      { key: 'howto', marginBottom: 1 },
+      h(Text, { color: palette.accent, bold: true }, 'SPACE'),
+      h(Text, { color: palette.muted }, ' to check/uncheck · '),
+      h(Text, { color: palette.accent, bold: true }, 'ENTER'),
+      h(Text, { color: palette.muted }, ' to confirm')
+    )
+  );
   if (start > 0) {
     children.push(h(Box, { key: 'uphint', marginBottom: 1 }, h(Text, { color: palette.border }, `  ${glyphs.more}${glyphs.more}${glyphs.more} more above`)));
   }
