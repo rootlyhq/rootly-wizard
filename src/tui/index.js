@@ -33,6 +33,7 @@ import {
   createAlertSourceForTui,
   createStatusPageForTui,
   loadStatusPageComponentsForTui,
+  createCustomComponentForTui,
   loadStatusPagesForTui,
   publishStatusPageForTui,
   updateStatusPageForTui,
@@ -480,12 +481,17 @@ function InkWizardApp({ onExit }) {
         { label: 'Verify: test alerting and incidents', value: 'verify' },
         { label: 'Inspect: status, teams, schedules', value: 'inspect' },
         { label: 'Set up MCP / IDE', value: 'mcp' },
+        { label: 'Chat with us', value: 'chat' },
         { label: 'Switch sign-in', value: 'auth' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: (option) => {
         if (option.value === 'back') {
           setScreen('menu');
+          return;
+        }
+        if (option.value === 'chat') {
+          setScreen('chat-menu');
           return;
         }
         if (option.value === 'setup') {
@@ -515,6 +521,51 @@ function InkWizardApp({ onExit }) {
         setScreen('menu');
       },
       onBack: () => setScreen('menu')
+    });
+  }
+
+  if (screen === 'chat-menu') {
+    return h(OptionScreen, {
+      title: 'Chat with us',
+      lines: ['Talk to the Rootly team.'],
+      options: [
+        { label: 'Talk to our founder JJ (seriously)', value: 'chat-ceo' },
+        { label: 'Book a demo with sales', value: 'book-demo' },
+        { label: 'Back', value: 'back' }
+      ],
+      onSelect: async (option) => {
+        if (option.value === 'back') {
+          setScreen('general-menu');
+          return;
+        }
+        const handoff = option.value === 'book-demo'
+          ? {
+              url: SALES_DEMO_URL,
+              title: 'Book a demo with sales',
+              opened: 'Opened the Rootly demo booking page in your browser.',
+              fallback: 'Open this link to book a demo with sales:'
+            }
+          : {
+              url: CEO_CAL_URL,
+              title: 'Talk to our founder JJ',
+              opened: "Opened JJ's calendar in your browser.",
+              fallback: 'Open this link to book a time with JJ:'
+            };
+        setLoading(true);
+        const result = await openExternalUrlForTui(handoff.url);
+        setLoading(false);
+        setResultScreen({
+          title: handoff.title,
+          lines: [
+            result.opened ? handoff.opened : handoff.fallback,
+            '',
+            handoff.url
+          ],
+          next: 'chat-menu'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('general-menu')
     });
   }
 
@@ -820,7 +871,7 @@ function InkWizardApp({ onExit }) {
             '',
             handoff.url
           ],
-          next: 'menu'
+          next: 'setup-complete'
         });
         setScreen('result');
       },
@@ -1490,23 +1541,69 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'sp-components') {
-    const count = (sp.serviceIds?.length || 0) + (sp.functionalityIds?.length || 0);
+    // Map selected ids back to labels so we can show what's been added, each
+    // with a green check.
+    const componentLabel = new Map((spComponents?.components || []).map((c) => [c.value, c.label]));
+    const addedValues = [
+      ...(sp.serviceIds || []).map((id) => `service:${id}`),
+      ...(sp.functionalityIds || []).map((id) => `functionality:${id}`)
+    ];
+    const count = addedValues.length;
+    const lines = count
+      ? [
+          'Added components:',
+          '',
+          ...addedValues.map((value) => ({ text: `✓ ${componentLabel.get(value) || value}`, color: palette.success })),
+          '',
+          'Add more, or publish your page.'
+        ]
+      : ['Components let visitors see the status of your services.', '', 'Add some now, or just publish — you can add more later.'];
     return h(OptionScreen, {
       title: 'Components to show on the page',
-      lines: count
-        ? [`${count} component${count === 1 ? '' : 's'} selected.`, '', 'Add more, or publish your page.']
-        : ['Components let visitors see the status of your services.', '', 'Add some now, or just publish — you can add more later.'],
+      lines,
       options: [
         { label: 'Go to publish', value: 'publish' },
         { label: 'Add a component', value: 'add' },
+        { label: 'Create your own component', value: 'custom' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
         if (option.value === 'back') { setScreen('sp-auth'); return; }
         if (option.value === 'add') { setScreen('sp-components-pick'); return; }
+        if (option.value === 'custom') { setScreen('sp-component-custom'); return; }
         await finalizeStatusPage();
       },
       onBack: () => setScreen('sp-auth')
+    });
+  }
+
+  if (screen === 'sp-component-custom') {
+    return h(TextEntryScreen, {
+      title: 'Create your own component',
+      prompt: 'Name a component to show on your status page (e.g. API, Dashboard, Checkout).',
+      placeholder: 'e.g. API',
+      onSubmit: async (value) => {
+        const name = String(value || '').trim();
+        if (!name) { setScreen('sp-components'); return; }
+        setLoading(true);
+        const result = await createCustomComponentForTui({ name });
+        setLoading(false);
+        if (result.ok) {
+          // Add it to the page selection and to the component list so it shows
+          // up (checked) alongside the existing services/functionalities.
+          patchSp({ functionalityIds: [...(sp.functionalityIds || []), result.data.id] });
+          setSpComponents((prev) => ({ components: [...(prev?.components || []), result.data.component] }));
+          setScreen('sp-components');
+          return;
+        }
+        setResultScreen({
+          title: 'Component needs attention',
+          lines: [friendlyError(result.summary)],
+          next: 'sp-components'
+        });
+        setScreen('result');
+      },
+      onBack: () => setScreen('sp-components')
     });
   }
 

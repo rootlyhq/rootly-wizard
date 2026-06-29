@@ -15,6 +15,30 @@ export async function getStatusPageComponentsAction() {
   return { ok: true, data: { components } };
 }
 
+// Create a custom status-page component. Status pages are built from services /
+// functionalities, so a typed-in component becomes a new functionality, then
+// gets added to the page by id. Returns the encoded component for the picker.
+export async function createCustomComponentAction({ name }) {
+  const clean = String(name || '').trim();
+  if (!clean) {
+    return { ok: false, summary: 'A component name is required.' };
+  }
+  const api = await loadApiClient();
+  const payload = await api.createFunctionality({ name: clean });
+  const id = payload?.data?.id;
+  if (!id) {
+    return { ok: false, summary: 'Rootly did not return the new component.' };
+  }
+  return {
+    ok: true,
+    data: {
+      id,
+      name: payload?.data?.attributes?.name || clean,
+      component: { label: `${payload?.data?.attributes?.name || clean} · functionality`, value: `functionality:${id}` }
+    }
+  };
+}
+
 export async function getStatusAction() {
   const state = await loadOnboardingState();
   if (!state) {

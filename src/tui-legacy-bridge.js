@@ -1,6 +1,6 @@
 import { loadOnboardingState } from './runtime.js';
 import { getTeamsAction, getSchedulesAction, getEscalationPoliciesAction } from './actions/inspect.js';
-import { getTeamMembersAction, getAddableTeamMembersAction, getDirectoryUsersAction, getStatusPageComponentsAction } from './actions/inspect.js';
+import { getTeamMembersAction, getAddableTeamMembersAction, getDirectoryUsersAction, getStatusPageComponentsAction, createCustomComponentAction } from './actions/inspect.js';
 import { getAuthSummary, getStoredToken, startOAuthLogin, storeToken, validateToken } from './auth.js';
 import {
   createTeamAction,
@@ -191,6 +191,14 @@ export async function loadStatusPageComponentsForTui() {
     return result.ok ? result.data : { components: [] };
   } catch {
     return { components: [] };
+  }
+}
+
+export async function createCustomComponentForTui(input) {
+  try {
+    return await createCustomComponentAction(input);
+  } catch (error) {
+    return { ok: false, summary: error?.message || 'The wizard could not create the component.' };
   }
 }
 

@@ -84,6 +84,18 @@ export class RootlyApiClient {
     return this.request('/v1/functionalities');
   }
 
+  async createFunctionality(attributes) {
+    return this.request('/v1/functionalities', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'functionalities',
+          attributes
+        }
+      }
+    });
+  }
+
   async listEnvironments() {
     return this.request('/v1/environments');
   }
