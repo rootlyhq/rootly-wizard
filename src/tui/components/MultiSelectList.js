@@ -22,15 +22,17 @@ function wrapText(text, width) {
 }
 
 function computeWindow(items, selectedIndex, maxRows) {
-  let start = selectedIndex;
-  let used = items[selectedIndex]?.height || 1;
+  if (!items.length) return { start: 0, end: -1 };
+  const focus = Math.min(selectedIndex, items.length - 1);
+  let start = focus;
+  let used = items[focus]?.height || 1;
   while (start > 0) {
     const next = items[start - 1].height;
     if (used + next > maxRows) break;
     start -= 1;
     used += next;
   }
-  let end = selectedIndex;
+  let end = focus;
   while (end < items.length - 1) {
     const next = items[end + 1].height;
     if (used + next > maxRows) break;
@@ -42,6 +44,8 @@ function computeWindow(items, selectedIndex, maxRows) {
 
 export function MultiSelectList({ options, onSubmit, onCancel, title, initialSelectedValues = [] }) {
   const { rows, columns } = useWindowSize();
+  // selectedIndex spans the options plus one extra row (CONFIRM) at the end.
+  const CONFIRM = options.length;
   const [selectedIndex, setSelectedIndex] = useState(0);
   // Pre-check options whose value is already selected (e.g. components already
   // on the page) so submitting preserves them instead of replacing the set.
@@ -65,9 +69,18 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
     [options, textWidth]
   );
 
-  const maxRows = Math.max(5, rows - 14);
+  const toggle = (index) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+
+  const maxRows = Math.max(5, rows - 16);
   const { start, end } = computeWindow(items, selectedIndex, maxRows);
   const visibleItems = items.slice(start, end + 1);
+  const onConfirm = selectedIndex === CONFIRM;
 
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
@@ -83,29 +96,25 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
       return;
     }
     if (key.downArrow) {
-      setSelectedIndex((current) => Math.min(options.length - 1, current + 1));
+      setSelectedIndex((current) => Math.min(CONFIRM, current + 1));
       return;
     }
-    // Space toggles the current row. Ink reports space as input === ' ' (not a
-    // dedicated key.space in this version), so accept both.
-    if (input === ' ' || key.space) {
-      setSelected((current) => {
-        const next = new Set(current);
-        if (next.has(selectedIndex)) next.delete(selectedIndex);
-        else next.add(selectedIndex);
-        return next;
-      });
-      return;
-    }
-    // 'a' toggles the whole list — select everyone (full roster) or clear.
+    // 'a' toggles the whole list — select everyone or clear.
     if (input === 'a') {
       setSelected((current) =>
         current.size === options.length ? new Set() : new Set(options.map((_, index) => index))
       );
       return;
     }
+    // Enter confirms on the Confirm row; otherwise it toggles the current item.
     if (key.return) {
-      onSubmit([...selected].map((index) => options[index]));
+      if (onConfirm) onSubmit([...selected].map((index) => options[index]));
+      else toggle(selectedIndex);
+      return;
+    }
+    // Space also toggles the current item (Ink reports space as input === ' ').
+    if (input === ' ' || key.space) {
+      if (!onConfirm) toggle(selectedIndex);
     }
   });
 
@@ -113,16 +122,17 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
   if (title) {
     children.push(h(Box, { key: 'title', marginBottom: 1 }, h(Text, { color: palette.muted }, title)));
   }
-  // Always-visible instruction — the toggle/confirm model isn't obvious from the
-  // checkboxes alone, so spell it out above the list.
+  // Spell out the model — it isn't obvious from the checkboxes alone.
   children.push(
     h(
       Box,
       { key: 'howto', marginBottom: 1 },
-      h(Text, { color: palette.accent, bold: true }, 'SPACE'),
-      h(Text, { color: palette.muted }, ' to check/uncheck · '),
-      h(Text, { color: palette.accent, bold: true }, 'ENTER'),
-      h(Text, { color: palette.muted }, ' to confirm')
+      h(Text, { color: palette.accent, bold: true }, 'enter'),
+      h(Text, { color: palette.muted }, ' or '),
+      h(Text, { color: palette.accent, bold: true }, 'space'),
+      h(Text, { color: palette.muted }, ' to check · arrow down to ' ),
+      h(Text, { color: palette.accent, bold: true }, 'Confirm'),
+      h(Text, { color: palette.muted }, ' to finish')
     )
   );
   if (start > 0) {
@@ -157,11 +167,13 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
     children.push(h(Box, { key: 'downhint', marginTop: 1 }, h(Text, { color: palette.border }, `  ${glyphs.more}${glyphs.more}${glyphs.more} more below`)));
   }
   const count = selected.size;
+  // The Confirm row — navigable like an option; Enter here submits.
   children.push(
     h(
       Box,
-      { key: 'count', marginTop: 1 },
-      h(Text, { color: count ? palette.success : palette.muted }, count ? `${count} selected` : 'none selected yet')
+      { key: 'confirm', marginTop: 1 },
+      h(Text, { color: onConfirm ? palette.brand : palette.border, bold: onConfirm }, onConfirm ? `${glyphs.cursor} ` : '  '),
+      h(Text, { color: onConfirm ? palette.text : palette.muted, bold: onConfirm }, `Confirm${count ? ` (${count} selected)` : ' (none selected)'}`)
     )
   );
 

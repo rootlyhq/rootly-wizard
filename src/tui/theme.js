@@ -53,9 +53,8 @@ export const HINTS = {
     { key: 'esc', label: 'back' },
   ],
   multi: [
-    { key: 'space', label: 'toggle' },
+    { key: '↵/space', label: 'check' },
     { key: 'a', label: 'all' },
-    { key: '↵', label: 'confirm' },
     { key: 'esc', label: 'back' },
   ],
   entry: [
