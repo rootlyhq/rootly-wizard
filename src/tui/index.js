@@ -556,11 +556,10 @@ function InkWizardApp({ onExit }) {
         setLoading(false);
         setResultScreen({
           title: handoff.title,
-          lines: [
-            result.opened ? handoff.opened : handoff.fallback,
-            '',
-            handoff.url
-          ],
+          lines: result.opened
+            ? [handoff.opened]
+            : [handoff.fallback, '', handoff.url],
+          continueLabel: 'Continue',
           next: 'chat-menu'
         });
         setScreen('result');
@@ -866,11 +865,10 @@ function InkWizardApp({ onExit }) {
         setLoading(false);
         setResultScreen({
           title: handoff.title,
-          lines: [
-            result.opened ? handoff.opened : handoff.fallback,
-            '',
-            handoff.url
-          ],
+          lines: result.opened
+            ? [handoff.opened]
+            : [handoff.fallback, '', handoff.url],
+          continueLabel: 'Continue',
           next: 'setup-complete'
         });
         setScreen('result');
