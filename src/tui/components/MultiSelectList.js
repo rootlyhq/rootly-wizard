@@ -86,7 +86,9 @@ export function MultiSelectList({ options, onSubmit, onCancel, title, initialSel
       setSelectedIndex((current) => Math.min(options.length - 1, current + 1));
       return;
     }
-    if (key.space) {
+    // Space toggles the current row. Ink reports space as input === ' ' (not a
+    // dedicated key.space in this version), so accept both.
+    if (input === ' ' || key.space) {
       setSelected((current) => {
         const next = new Set(current);
         if (next.has(selectedIndex)) next.delete(selectedIndex);
