@@ -201,7 +201,7 @@ function InkWizardApp({ onExit }) {
     const publicPage = (spExisting.pages || []).find((p) => p.public);
     if (publicPage) {
       // Walk them through editing the existing public page (update, not create).
-      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), editId: publicPage.id, existingPage: publicPage, title: publicPage.title, serviceIds: publicPage.serviceIds || [], functionalityIds: publicPage.functionalityIds || [] } }));
+      setFormState((prev) => ({ ...prev, sp: { ...(prev.sp || {}), editId: publicPage.id, existingPage: publicPage, title: publicPage.title } }));
     }
     setScreen('sp-name'); // no public page → create one; otherwise walk through editing it
     return undefined;
@@ -1203,9 +1203,12 @@ function InkWizardApp({ onExit }) {
       title: sp.title,
       authenticationMethod: sp.authMethod || 'none',
       authenticationPassword: sp.authPassword || null,
-      serviceIds: sp.serviceIds || [],
-      functionalityIds: sp.functionalityIds || [],
-      publish: true
+      publish: true,
+      // Only set components when the user actually chose some this session, so
+      // editing a page without touching components doesn't wipe its existing set.
+      ...(sp.componentsTouched
+        ? { serviceIds: sp.serviceIds || [], functionalityIds: sp.functionalityIds || [] }
+        : {})
     };
     setLoading(true);
     const result = sp.editId
@@ -1591,7 +1594,7 @@ function InkWizardApp({ onExit }) {
         if (result.ok) {
           // The custom component is a Service — add its id to serviceIds and to
           // the component list so it shows alongside the existing components.
-          patchSp({ serviceIds: [...(sp.serviceIds || []), result.data.id] });
+          patchSp({ serviceIds: [...(sp.serviceIds || []), result.data.id], componentsTouched: true });
           setSpComponents((prev) => ({ components: [...(prev?.components || []), result.data.component] }));
           setScreen('sp-components');
           return;
@@ -1630,7 +1633,8 @@ function InkWizardApp({ onExit }) {
       onSubmit: (selected) => {
         patchSp({
           serviceIds: selected.filter((o) => o.value.startsWith('service:')).map((o) => o.value.slice(8)),
-          functionalityIds: selected.filter((o) => o.value.startsWith('functionality:')).map((o) => o.value.slice(14))
+          functionalityIds: selected.filter((o) => o.value.startsWith('functionality:')).map((o) => o.value.slice(14)),
+          componentsTouched: true
         });
         setScreen('sp-components');
       },
