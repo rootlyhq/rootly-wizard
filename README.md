@@ -69,7 +69,7 @@ The fastest path. In one flow it will:
 3. Create an on-call schedule
 4. Create an escalation policy that pages the on-call schedule
 5. Add an alert source
-6. Create an internal status page
+6. Create a public status page (and choose which components appear on it)
 7. Fire a **test alert** that **pages the on-call person** (a real call/text)
 8. Open a **test incident** (with a link to its Slack channel, if Slack is connected)
 
@@ -81,15 +81,16 @@ Jump to any individual task:
 
 - **Teams & members** — create teams, add members from your directory
 - **On-call** — schedules and escalation policies
-- **Status page** — create an internal status page
+- **Status page** — create a public status page and pick which components (services) appear on it
 - **Integrations** — Slack, and alert-source handoffs (Datadog, Grafana, Sentry, PagerDuty, Opsgenie)
 - **Verify** — send a test alert (pages on-call) or create a test incident
 - **Inspect** — review your current teams, schedules, and coverage
 - **MCP / IDE** — configure the Rootly MCP server for your editor or AI agent
+- **Chat with us** — talk to our founder JJ or book a demo with sales
 
 ### MCP / IDE setup
 
-The wizard can write Rootly MCP server config for supported clients: **Cursor, Claude Code, Claude Desktop, Windsurf, and Codex**.
+The wizard can write Rootly MCP server config for **Codex** (preview the config or apply it directly).
 
 ## Scripting (advanced)
 

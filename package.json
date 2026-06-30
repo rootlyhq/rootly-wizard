@@ -1,18 +1,43 @@
 {
   "name": "@rootly/wizard",
   "version": "0.1.0",
-  "private": true,
   "description": "Guided Rootly setup CLI",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "rootly-wizard": "./src/cli.js"
   },
+  "files": [
+    "src",
+    "assets",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rootly-AI-Labs/rootly-wizard.git"
+  },
+  "homepage": "https://github.com/Rootly-AI-Labs/rootly-wizard#readme",
+  "bugs": {
+    "url": "https://github.com/Rootly-AI-Labs/rootly-wizard/issues"
+  },
+  "keywords": [
+    "rootly",
+    "incident-management",
+    "on-call",
+    "cli",
+    "setup",
+    "wizard"
+  ],
   "scripts": {
     "start": "node ./src/cli.js",
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "npm test"
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "ink": "^7.0.5",
