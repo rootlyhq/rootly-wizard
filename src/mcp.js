@@ -168,13 +168,19 @@ export async function writeHostedMcpConfig(client, token) {
   const backupPath = await maybeBackupFile(targetPath);
 
   if (client === 'Codex') {
-    await fs.writeFile(targetPath, codexConfig(), 'utf8');
+    // Codex config references the token via env var, so it holds no secret —
+    // but write it owner-only for consistency with the token-bearing configs.
+    await fs.writeFile(targetPath, codexConfig(), { encoding: 'utf8', mode: 0o600 });
     return { targetPath, backupPath };
   }
 
   const existing = await readExistingJson(targetPath);
   const merged = mergeMcpServers(existing, JSON.parse(configForClient(client, token)));
-  await fs.writeFile(targetPath, stringifyConfig(merged), 'utf8');
+  // These configs embed the bearer token inline, so restrict to owner read/write
+  // (0600) rather than leaving the default world-readable perms. writeFile's mode
+  // only applies on create, so chmod afterward to also tighten a pre-existing file.
+  await fs.writeFile(targetPath, stringifyConfig(merged), { encoding: 'utf8', mode: 0o600 });
+  await fs.chmod(targetPath, 0o600).catch(() => {});
   return { targetPath, backupPath };
 }
 
