@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # keytar dlopens libsecret-1.so.0 at runtime; it isn't on the runner image.
+      - run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm test
