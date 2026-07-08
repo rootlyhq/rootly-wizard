@@ -140,6 +140,9 @@ async function maybeBackupFile(filePath) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${filePath}.bak.${stamp}`;
   await fs.copyFile(filePath, backupPath);
+  // The source may embed a bearer token, and copyFile doesn't guarantee tight
+  // perms on the copy — restrict the backup to owner read/write like the live file.
+  await fs.chmod(backupPath, 0o600).catch(() => {});
   return backupPath;
 }
 
@@ -168,9 +171,27 @@ export async function writeHostedMcpConfig(client, token) {
   const backupPath = await maybeBackupFile(targetPath);
 
   if (client === 'Codex') {
-    // Codex config references the token via env var, so it holds no secret —
-    // but write it owner-only for consistency with the token-bearing configs.
-    await fs.writeFile(targetPath, codexConfig(), { encoding: 'utf8', mode: 0o600 });
+    // Codex config is a shared TOML file (models, profiles, other MCP servers).
+    // Never overwrite it: append our [mcp_servers.rootly] block if it's absent,
+    // and leave the file untouched if it's already there (the block is static —
+    // it references the token via env var, so there's nothing to update). Token
+    // holds no secret, but still write owner-only for consistency.
+    let existing = '';
+    try {
+      existing = await fs.readFile(targetPath, 'utf8');
+    } catch {
+      existing = '';
+    }
+    let next;
+    if (existing.includes('[mcp_servers.rootly]')) {
+      next = existing;
+    } else if (existing.trim()) {
+      next = `${existing.replace(/\s*$/, '')}\n\n${codexConfig()}\n`;
+    } else {
+      next = `${codexConfig()}\n`;
+    }
+    await fs.writeFile(targetPath, next, { encoding: 'utf8', mode: 0o600 });
+    await fs.chmod(targetPath, 0o600).catch(() => {});
     return { targetPath, backupPath };
   }
 
