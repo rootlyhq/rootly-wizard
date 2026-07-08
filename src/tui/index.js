@@ -101,6 +101,7 @@ function InkWizardApp({ onExit }) {
     if (!['menu', 'status', 'inspect', 'teams', 'schedules', 'policies', 'schedule-members', 'add-members-picker', 'one-shot-members'].includes(screen)) return undefined;
 
     void (async () => {
+     try {
       // Reuse cached values across navigation so returning to the menu is
       // instant. The keychain check and the workspace sweep only run when their
       // cache is empty; mutations clear the cache (see clearWorkspaceCache),
@@ -152,12 +153,15 @@ function InkWizardApp({ onExit }) {
         const nextPolicies = await loadEscalationPoliciesForTui();
         if (!cancelled) setPoliciesData(nextPolicies);
       }
-      if (screen === 'schedule-members' && selectedTeam?.id && !teamMembersData) {
+      // Gate on the cached data belonging to the CURRENTLY selected team, not
+      // just on presence — otherwise switching teams (A -> back -> B) reuses A's
+      // roster and would add A's people to B / staff B's rotation with A's users.
+      if (screen === 'schedule-members' && selectedTeam?.id && teamMembersData?.teamId !== selectedTeam.id) {
         setLoading(true);
         const nextMembers = await loadTeamMembersForTui(selectedTeam.id);
         if (!cancelled) setTeamMembersData(nextMembers);
       }
-      if (screen === 'add-members-picker' && selectedTeam?.id && !addableUsers) {
+      if (screen === 'add-members-picker' && selectedTeam?.id && addableUsers?.teamId !== selectedTeam.id) {
         setLoading(true);
         const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
         if (!cancelled) setAddableUsers(nextAddable);
@@ -170,6 +174,15 @@ function InkWizardApp({ onExit }) {
       if (!cancelled) {
         setLoading(false);
       }
+     } catch {
+        // Any loader (teams/schedules/policies/members/directory) can throw on a
+        // network/5xx/timeout. Without this the promise rejects, setLoading(false)
+        // never runs, and the TUI is stuck on the loading screen forever.
+        if (!cancelled) {
+          setLoading(false);
+          setScreen('load-failed');
+        }
+     }
     })();
 
     return () => {
