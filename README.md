@@ -12,7 +12,7 @@ npx @rootly/wizard
 
 ## Requirements
 
-- **Node.js 18 or newer**
+- **Node.js 22 or newer**
 - A **Rootly account** (don't have one? the wizard can hand you off to sign up)
 - Sign in with a **browser (OAuth)** or a **Rootly API token** (see [Signing in](#signing-in))
 - A terminal (macOS, Linux, or Windows)
@@ -117,7 +117,7 @@ The wizard is under active development. A few things to know:
 
 - **"Sign in to Rootly" keeps appearing** — your token may be missing or invalid. Generate a fresh key (Organization Settings → API Keys) and re-enter it, or sign in with your browser.
 - **Setup steps are skipped or blocked** — the sign-in needs write access. Use a Global API token with the relevant permissions, or see [Known limitations](#known-limitations).
-- **Nothing happens / wrong screen** — make sure you're on Node.js 18+ and running in an interactive terminal.
+- **Nothing happens / wrong screen** — make sure you're on Node.js 22+ and running in an interactive terminal.
 
 ## Development
 
