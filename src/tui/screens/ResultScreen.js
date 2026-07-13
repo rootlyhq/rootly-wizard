@@ -23,7 +23,11 @@ export function ResultScreen({ title, lines, onContinue, continueLabel = 'Contin
           ...actions.map((action, index) => ({ label: action.label, value: `action-${index}` }))
         ],
         onSelect: (option) => {
-          if (option.value === 'continue') {
+          // MenuList can call onSelect with undefined when its internal
+          // selectedIndex points past the current options (e.g. the parent
+          // shrank the list on re-render). Fall through to Continue in that
+          // case so the flow stays unblocked instead of throwing.
+          if (!option || option.value === 'continue') {
             onContinue?.();
             return;
           }
