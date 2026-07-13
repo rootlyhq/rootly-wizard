@@ -1147,6 +1147,7 @@ function InkWizardApp({ onExit }) {
           lines: result?.data?.opened
             ? ['Opened Rootly’s manual page modal in your browser.', '', 'Fill it in to page whoever’s on call — we’ll be here when you’re done.', ...(url ? ['', hyperlink(url, '↗ Reopen the manual page in Rootly')] : [])]
             : ['Couldn’t open your browser — open this link to page on-call from the Rootly app:', ...(url ? ['', hyperlink(url, '↗ Open the manual page in Rootly')] : [])],
+          continueLabel: 'Continue',
           next: 'setup-complete'
         });
         setScreen('result');
