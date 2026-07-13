@@ -1131,6 +1131,27 @@ function InkWizardApp({ onExit }) {
         clearWorkspaceCache();
         setScreen('one-shot-members');
       },
+      // Opens Rootly's "manual page" modal. Uses the same
+      // handoff-plus-result-screen pattern as Slack/CEO/etc. so the user gets
+      // the same "Opened in your browser…" acknowledgement. Lands on
+      // setup-complete afterwards — going back to one-shot-running would
+      // re-trigger the whole setup (that screen kicks off the run on mount).
+      onOpenTestPage: async () => {
+        setLoading(true);
+        const result = await startWebHandoffForTui({ kind: 'TestPage', open: true });
+        setLoading(false);
+        const url = result?.data?.url;
+        clearWorkspaceCache();
+        setResultScreen({
+          title: 'Send a test page',
+          lines: result?.data?.opened
+            ? ['Opened Rootly’s manual page modal in your browser.', '', 'Fill it in to page whoever’s on call — we’ll be here when you’re done.', ...(url ? ['', hyperlink(url, '↗ Reopen the manual page in Rootly')] : [])]
+            : ['Couldn’t open your browser — open this link to page on-call from the Rootly app:', ...(url ? ['', hyperlink(url, '↗ Open the manual page in Rootly')] : [])],
+          continueLabel: 'Continue',
+          next: 'setup-complete'
+        });
+        setScreen('result');
+      },
       onExit: leave
     });
   }

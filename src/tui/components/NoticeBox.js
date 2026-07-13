@@ -2,6 +2,17 @@ import { createElement as h } from 'react';
 import { Box, Text, useWindowSize } from 'ink';
 import { palette } from '../theme.js';
 
+// Return the printable length of `text`, ignoring OSC 8 hyperlink wrappers
+// (ESC ] 8 ;; URL BEL … ESC ] 8 ;; BEL) and ANSI CSI color sequences. Without
+// this, a hyperlink-wrapped word looks ~130 chars long and gets pushed to its
+// own line even though its visible content is tiny.
+function visibleLength(text) {
+  return String(text)
+    .replace(/\x1b\]8;;[^\x07]*\x07/g, '')
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .length;
+}
+
 // Greedy word-wrap to `width`, trimming each segment. We pre-wrap rather than
 // letting Ink wrap, because Ink keeps the boundary space and the continuation
 // line ends up indented one space (visible when the terminal is resized).
@@ -13,7 +24,7 @@ function wrapLine(text, width) {
   for (const word of words) {
     if (!current) {
       current = word;
-    } else if ((current + ' ' + word).length <= width) {
+    } else if (visibleLength(current + ' ' + word) <= width) {
       current += ' ' + word;
     } else {
       out.push(current);
