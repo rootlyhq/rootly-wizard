@@ -13,7 +13,12 @@ export function TextEntryScreen({
   onSubmit,
   onBack,
   hidden = false,
-  allowEmpty = false
+  allowEmpty = false,
+  // Optional secondary action bound to a modifier keystroke (Ctrl+R by default).
+  // When provided, the hint appears under the field so the affordance is
+  // discoverable — the whole screen otherwise consumes every printable key.
+  onSecondary,
+  secondaryHint = null
 }) {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState('');
@@ -31,6 +36,10 @@ export function TextEntryScreen({
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
       onBack?.();
+      return;
+    }
+    if (key.ctrl && input === 'r' && onSecondary) {
+      onSecondary();
       return;
     }
     if (key.escape) {
@@ -109,7 +118,8 @@ export function TextEntryScreen({
             )
           )
         : null,
-      link ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, link)) : null
+      link ? h(Box, { marginTop: 1 }, h(Text, { color: palette.accent }, link)) : null,
+      secondaryHint ? h(Box, { marginTop: 1 }, h(Text, { color: palette.muted }, secondaryHint)) : null
     )
   );
 }
