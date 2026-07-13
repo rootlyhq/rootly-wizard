@@ -21,9 +21,13 @@ function mergeMcpServers(existing, incoming) {
 }
 
 function hostedJsonConfig(token) {
+  // Cursor accepts either shape but recent releases prefer an explicit
+  // transport type for streamable-HTTP servers. Matching what we write for
+  // Claude Code keeps the format consistent across the JSON-config clients.
   return {
     mcpServers: {
       rootly: {
+        type: 'http',
         url: HOSTED_MCP_URL,
         headers: {
           Authorization: `Bearer ${token}`
@@ -72,10 +76,12 @@ function windsurfConfig(token) {
 }
 
 function codexConfig() {
+  // The wizard's own env var is ROOTLY_TOKEN; keep the Codex MCP config
+  // pointing at the same name so users don't need to set two variables.
   return [
     '[mcp_servers.rootly]',
     `url = "${HOSTED_MCP_URL}"`,
-    'bearer_token_env_var = "ROOTLY_API_TOKEN"'
+    'bearer_token_env_var = "ROOTLY_TOKEN"'
   ].join('\n');
 }
 
@@ -146,12 +152,24 @@ async function maybeBackupFile(filePath) {
   return backupPath;
 }
 
+// Read a JSON config, returning:
+//   { missing: true }              — the file doesn't exist yet (fine, fresh write)
+//   { value: object }              — parsed JSON
+//   { malformed: true, raw }       — file exists but isn't valid JSON
+// Callers should refuse to clobber a malformed file so a hand-edited or
+// corrupted config isn't silently overwritten.
 async function readExistingJson(filePath) {
+  let raw;
   try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
+    raw = await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return { missing: true };
+    throw error;
+  }
+  try {
+    return { value: JSON.parse(raw) };
   } catch {
-    return {};
+    return { malformed: true, raw };
   }
 }
 
@@ -161,7 +179,7 @@ export function buildHostedMcpPreview(client, tokenType) {
     `Auth: ${tokenType}`,
     'Connection: hosted Rootly MCP server',
     '',
-    configForClient(client, '<YOUR_ROOTLY_API_TOKEN>')
+    configForClient(client, '<YOUR_ROOTLY_TOKEN>')
   ].join('\n');
 }
 
@@ -196,7 +214,14 @@ export async function writeHostedMcpConfig(client, token) {
   }
 
   const existing = await readExistingJson(targetPath);
-  const merged = mergeMcpServers(existing, JSON.parse(configForClient(client, token)));
+  if (existing.malformed) {
+    // Don't clobber a file we can't parse — a hand-edited config with a typo
+    // would silently lose all its other MCP servers otherwise. Surface a real
+    // error so the caller can tell the user what to do.
+    throw new Error(`Existing MCP config at ${targetPath} is not valid JSON — refusing to overwrite. Fix or move the file, then rerun.`);
+  }
+  const existingConfig = existing.value || {};
+  const merged = mergeMcpServers(existingConfig, JSON.parse(configForClient(client, token)));
   // These configs embed the bearer token inline, so restrict to owner read/write
   // (0600) rather than leaving the default world-readable perms. writeFile's mode
   // only applies on create, so chmod afterward to also tighten a pre-existing file.
@@ -217,7 +242,7 @@ export function buildClaudeCodeUserCommandArgs(token) {
 }
 
 export function claudeCodeUserCommandDisplay() {
-  return `claude mcp add --scope user --transport http rootly ${HOSTED_MCP_URL} --header "Authorization: Bearer <YOUR_ROOTLY_API_TOKEN>"`;
+  return `claude mcp add --scope user --transport http rootly ${HOSTED_MCP_URL} --header "Authorization: Bearer <YOUR_ROOTLY_TOKEN>"`;
 }
 
 function claudeCliAvailable() {
@@ -257,7 +282,14 @@ export async function verifyHostedMcpConfig(client) {
     return targetPath;
   }
 
-  const config = await readExistingJson(targetPath);
+  const existing = await readExistingJson(targetPath);
+  if (existing.missing) {
+    throw new Error(`Rootly MCP config not found in ${targetPath}`);
+  }
+  if (existing.malformed) {
+    throw new Error(`MCP config at ${targetPath} is not valid JSON — cannot verify.`);
+  }
+  const config = existing.value || {};
   const rootly = config?.mcpServers?.rootly || config?.rootly;
 
   if (!rootly) {

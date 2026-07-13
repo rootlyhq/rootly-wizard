@@ -565,10 +565,3 @@ export async function publishStatusPageAction({ id } = {}) {
   };
 }
 
-export function serializeActionError(error, fallbackSummary) {
-  return {
-    ok: false,
-    summary: fallbackSummary,
-    error: formatError(error)
-  };
-}

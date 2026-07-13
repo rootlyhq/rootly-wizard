@@ -5,14 +5,14 @@ import { buildClaudeCodeUserCommandArgs, buildHostedMcpPreview, getMcpConfigPath
 test('preview embeds the hosted endpoint and a token placeholder for JSON clients', () => {
   const preview = buildHostedMcpPreview('Cursor', 'Use stored token');
   assert.match(preview, /mcp\.rootly\.com\/mcp/);
-  assert.match(preview, /<YOUR_ROOTLY_API_TOKEN>/);
+  assert.match(preview, /<YOUR_ROOTLY_TOKEN>/);
   assert.match(preview, /Client: Cursor/);
 });
 
 test('Codex preview uses env-var indirection rather than an inline token', () => {
   const preview = buildHostedMcpPreview('Codex', 'Use ROOTLY_TOKEN');
   assert.match(preview, /bearer_token_env_var/);
-  assert.doesNotMatch(preview, /<YOUR_ROOTLY_API_TOKEN>/);
+  assert.doesNotMatch(preview, /<YOUR_ROOTLY_TOKEN>/);
 });
 
 test('Claude Code config path is the project-local .mcp.json', () => {

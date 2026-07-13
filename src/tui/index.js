@@ -43,6 +43,7 @@ import {
   runOneShotSetupForTui,
   startPhoneVerificationForTui,
   confirmPhoneVerificationForTui,
+  resendPhoneVerificationForTui,
   loadCurrentUserPhoneForTui,
   startWebHandoffForTui,
   openExternalUrlForTui,
@@ -740,6 +741,8 @@ function InkWizardApp({ onExit }) {
       title: 'MCP / IDE setup',
       lines: ['Configure the hosted Rootly MCP server for supported clients.'],
       options: [
+        { label: 'Apply Claude Code — all projects (recommended)', value: 'apply-claude-user' },
+        { label: 'Apply Claude Code — this project only', value: 'apply-claude-project' },
         { label: 'Preview Codex config', value: 'preview-codex' },
         { label: 'Apply Codex config', value: 'apply-codex' },
         { label: 'Back', value: 'back' }
@@ -757,13 +760,34 @@ function InkWizardApp({ onExit }) {
           setScreen('mcp-preview');
           return;
         }
-        const result = await applyMcpForTui({ clients: ['Codex'], auth: 'Use stored token' });
+        // Claude Code has two scopes: 'user' registers globally via
+        // `claude mcp add --scope user` (Rootly MCP works across every
+        // project); 'project' writes .mcp.json into the current directory
+        // (Rootly MCP only in that repo).
+        let clients = ['Codex'];
+        let claudeCodeScope = 'project';
+        if (option.value === 'apply-claude-user') {
+          clients = ['Claude Code'];
+          claudeCodeScope = 'user';
+        } else if (option.value === 'apply-claude-project') {
+          clients = ['Claude Code'];
+          claudeCodeScope = 'project';
+        }
+        const result = await applyMcpForTui({ clients, auth: 'Use stored token', claudeCodeScope });
         setLoading(false);
+        const resultLines = result.ok
+          ? (result.data?.results || []).flatMap((entry) => {
+              const primary = `${entry.client}: ${entry.targetPath}`;
+              // When the claude CLI isn't on PATH, applyMcpSetupAction returns
+              // the exact command for the user to run manually. Surface it so
+              // they can complete the setup without hunting for it.
+              return entry.command ? [primary, '', 'Run this to finish (claude CLI not found on PATH):', entry.command] : [primary];
+            })
+          : [friendlyError(result.summary)];
         setResultScreen({
           title: result.ok ? 'MCP configured' : 'MCP setup blocked',
-          lines: result.ok
-            ? (result.data?.results || []).map((entry) => `${entry.client}: ${entry.targetPath}`)
-            : [friendlyError(result.summary)],
+          lines: resultLines,
+          continueLabel: 'Continue',
           next: 'menu'
         });
         setScreen('result');
@@ -1034,6 +1058,24 @@ function InkWizardApp({ onExit }) {
       prompt: `Enter the 6-digit code we texted to ${formState.phone || 'your phone'}.`,
       lines: ['It can take a few seconds to arrive.'],
       placeholder: '123456',
+      // Didn't get a code? Ctrl-R resends without leaving the screen. The
+      // resend path is the same action the agent surface exposes; it just
+      // wasn't wired to the UI before.
+      secondaryHint: 'Ctrl-R  resend the code',
+      onSecondary: async () => {
+        setLoading(true);
+        const result = await resendPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId });
+        setLoading(false);
+        setResultScreen({
+          title: result.ok ? 'Code resent' : 'Couldn’t resend',
+          lines: result.ok
+            ? [`Sent a new code to ${formState.phone || 'your phone'}.`, 'It can take a few seconds to arrive.']
+            : [friendlyError(result.summary)],
+          continueLabel: 'Continue',
+          next: 'phone-code'
+        });
+        setScreen('result');
+      },
       onSubmit: async (value) => {
         setLoading(true);
         const result = await confirmPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId, code: value });

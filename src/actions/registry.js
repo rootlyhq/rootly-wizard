@@ -229,7 +229,8 @@ export const ACTIONS = {
     description: 'Preview MCP client config without writing files.',
     input: {
       clients: { type: 'array', items: 'string', description: 'Clients (Cursor, Claude Code, ...).' },
-      auth: { type: 'string', description: 'Auth mode label.' }
+      auth: { type: 'string', description: 'Auth mode label.' },
+      claudeCodeScope: { type: 'string', description: '"project" (default, writes .mcp.json in cwd) or "user" (global, uses `claude mcp add --scope user`).' }
     },
     handler: previewMcpSetupAction
   },
@@ -238,7 +239,8 @@ export const ACTIONS = {
     description: 'Write MCP client config files for the selected clients.',
     input: {
       clients: { type: 'array', items: 'string', required: true, description: 'Clients to configure.' },
-      auth: { type: 'string', description: 'Auth mode label.' }
+      auth: { type: 'string', description: 'Auth mode label.' },
+      claudeCodeScope: { type: 'string', description: '"project" (default, writes .mcp.json in cwd) or "user" (global, uses `claude mcp add --scope user`).' }
     },
     handler: applyMcpSetupAction
   }
