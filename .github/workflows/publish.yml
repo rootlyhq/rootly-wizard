@@ -17,9 +17,13 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # keytar dlopens libsecret-1.so.0 at runtime; it isn't on the runner image.
-      - run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
+      # keytar needs libsecret; install the -dev package (headers + runtime lib) so
+      # the native module can compile from source if needed.
+      - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
       - run: npm install -g npm@latest
       - run: npm ci
+      # npm@latest can skip keytar's prebuilt-binary download during `npm ci`, so
+      # its build/Release/keytar.node ends up missing. Force the native build.
+      - run: npm rebuild keytar
       - run: npm test
       - run: npm publish --provenance --access public
