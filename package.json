@@ -1,11 +1,12 @@
 {
   "name": "@rootly/wizard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Guided Rootly setup CLI",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "rootly-wizard": "./src/cli.js"
+    "rootly-wizard": "./src/cli.js",
+    "wizard": "./src/cli.js"
   },
   "files": [
     "src",
