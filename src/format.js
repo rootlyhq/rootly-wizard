@@ -9,6 +9,35 @@ export function hyperlink(url, label = url) {
   return `${OSC}${url}${BEL}${label}${OSC}${BEL}`;
 }
 
+// Copy text to the OS clipboard by piping into the platform's native tool.
+// No deps: pbcopy (macOS), clip (Windows), xclip (Linux — must be installed).
+// Resolves true on success, false if the command was missing or exited non-zero
+// so the caller can surface a clean fallback message instead of throwing.
+export async function copyToClipboard(text) {
+  const { spawn } = await import('node:child_process');
+  const [cmd, args] = process.platform === 'darwin'
+    ? ['pbcopy', []]
+    : process.platform === 'win32'
+      ? ['clip', []]
+      : ['xclip', ['-selection', 'clipboard']];
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { stdio: ['pipe', 'ignore', 'ignore'] });
+    } catch {
+      resolve(false);
+      return;
+    }
+    child.on('error', () => resolve(false));
+    child.on('close', (code) => resolve(code === 0));
+    try {
+      child.stdin.end(String(text));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
 // Format an E.164-ish phone number for display. US/Canada (+1 + 10 digits)
 // becomes +1 (415) 706-8600; anything else is returned as-is.
 export function formatPhone(raw) {

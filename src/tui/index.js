@@ -1,7 +1,7 @@
 import { createElement as h, useEffect, useState } from 'react';
 import { render, useApp, Box } from 'ink';
 import { palette } from './theme.js';
-import { friendlyError, formatPhone, hyperlink } from '../format.js';
+import { copyToClipboard, friendlyError, formatPhone, hyperlink } from '../format.js';
 import { BigText } from './components/BigText.js';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { MainMenuScreen } from './screens/MainMenuScreen.js';
@@ -1147,6 +1147,23 @@ function InkWizardApp({ onExit }) {
           lines: result?.data?.opened
             ? ['Opened Rootly’s manual page modal in your browser.', '', 'Fill it in to page whoever’s on call — we’ll be here when you’re done.', ...(url ? ['', hyperlink(url, '↗ Reopen the manual page in Rootly')] : [])]
             : ['Couldn’t open your browser — open this link to page on-call from the Rootly app:', ...(url ? ['', hyperlink(url, '↗ Open the manual page in Rootly')] : [])],
+          // No-modifier alternative to ⌘-clicking the hyperlink: copy the URL
+          // to the clipboard. Selecting the action swaps to a compact
+          // acknowledgement screen so the user knows it worked.
+          actions: url ? [{
+            label: 'Copy link',
+            onSelect: async () => {
+              const ok = await copyToClipboard(url);
+              setResultScreen({
+                title: ok ? 'Link copied' : 'Copy failed',
+                lines: ok
+                  ? ['The Rootly manual page URL is on your clipboard — paste it into any browser tab to page on-call.']
+                  : ['Couldn’t copy to the clipboard (needs pbcopy/xclip/clip). The hyperlink above still works — ⌘/Ctrl-click it in your terminal.'],
+                continueLabel: 'Continue',
+                next: 'setup-complete'
+              });
+            }
+          }] : [],
           continueLabel: 'Continue',
           next: 'setup-complete'
         });
