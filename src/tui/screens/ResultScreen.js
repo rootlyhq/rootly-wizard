@@ -16,9 +16,11 @@ export function ResultScreen({ title, lines, onContinue, continueLabel = 'Contin
       Box,
       { marginTop: 1 },
       h(MenuList, {
+        // Continue is always the default (option 1 / Enter). Actions render
+        // beneath it as secondary choices.
         options: [
-          ...actions.map((action, index) => ({ label: action.label, value: `action-${index}` })),
-          { label: continueLabel, value: 'continue' }
+          { label: continueLabel, value: 'continue' },
+          ...actions.map((action, index) => ({ label: action.label, value: `action-${index}` }))
         ],
         onSelect: (option) => {
           if (option.value === 'continue') {
