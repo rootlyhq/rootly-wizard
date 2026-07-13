@@ -8,6 +8,7 @@ import {
   createTeamAction
 } from './setup.js';
 import { createTestAlertAction, createTestIncidentAction } from './testing.js';
+import { webHandoffUrl } from './integrations.js';
 
 function stepError(error) {
   return error?.message?.replace(/^Rootly API request failed for [^:]+:\s*/, '') || 'unknown error';
@@ -76,6 +77,10 @@ export async function runOneShotSetupAction({
     alertSource: null,
     alert: null,
     incident: null,
+    // Web fallback for triggering a page manually — surfaced when the wizard
+    // can't fire the alert itself (e.g. OAuth session lacks alert-write) so the
+    // user can still verify on-call paging without leaving the flow.
+    testPageUrl: webHandoffUrl('TestPage'),
     steps
   };
 

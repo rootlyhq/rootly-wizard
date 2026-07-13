@@ -30,6 +30,14 @@ export function webHandoffUrl(kind, appBaseUrl = DEFAULT_APP_BASE_URL) {
     case 'Opsgenie':
       // Not an alert source — Opsgenie connects as an escalation integration.
       return `${appBaseUrl}/account/integrations/opsgenie_accounts/new`;
+    case 'TestPage': {
+      // Deep link that opens Rootly's "manual page" modal on the alerts page.
+      // Users can trigger a page from the UI when the wizard can't (e.g. an
+      // OAuth session that lacks alert-write permission), which routes through
+      // the on-call escalation policy and rings the on-call user's phone.
+      const modalTarget = `${appBaseUrl}/account/alerts/manual_page_modal`;
+      return `${appBaseUrl}/account/alerts?modal=${encodeURIComponent(modalTarget)}`;
+    }
     default:
       // The unified alert sources tab — where any alert source is added.
       return `${appBaseUrl}/account/alerts?tab=alert-sources#add-alert-sources-section`;
