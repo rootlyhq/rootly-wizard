@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Check version and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_VERSION="v$(node -p "require('./package.json').version")"
+          if git tag -l "${CURRENT_VERSION}" | grep -q "${CURRENT_VERSION}"; then
+            echo "Version ${CURRENT_VERSION} already released"
+            exit 0
+          fi
+          git tag "${CURRENT_VERSION}"
+          git push origin "${CURRENT_VERSION}"
+          gh release create "${CURRENT_VERSION}" --generate-notes --title "${CURRENT_VERSION}"
