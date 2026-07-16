@@ -31,7 +31,7 @@ export async function runGuidedSetupAction({
   // The team is the anchor for everything else, so a team failure is fatal.
   let teamResult;
   try {
-    teamResult = await createTeamAction({ name: teamName, description, memberEmails, enableAlertsAndBroadcast });
+    teamResult = await createTeamAction({ name: teamName, description, memberEmails, enableAlertsAndBroadcast, reuseByName: true });
     data.team = { id: teamResult.data.id, name: teamResult.data.name };
     data.matchedUsers = teamResult.data.matchedUsers;
     steps.push({ step: 'create-team', ok: true, id: teamResult.data.id, error: null });
@@ -49,7 +49,7 @@ export async function runGuidedSetupAction({
   const memberIds = teamResult.data.memberIds;
 
   try {
-    const schedule = await createScheduleAction({ teamId, name: `${teamName} On-Call`, handoffTime, memberIds });
+    const schedule = await createScheduleAction({ teamId, name: `${teamName} On-Call`, handoffTime, memberIds, reuseByName: true });
     data.schedule = { id: schedule.data.scheduleId };
     steps.push({ step: 'create-schedule', ok: true, id: schedule.data.scheduleId, error: null });
   } catch (error) {
@@ -61,7 +61,8 @@ export async function runGuidedSetupAction({
       teamId,
       name: `${teamName} Default Escalation`,
       repeatCount,
-      createDefaultPath: Boolean(data.schedule)
+      createDefaultPath: Boolean(data.schedule),
+      reuseByName: true
     });
     data.escalationPolicy = { id: escalation.data.id, pathCreated: escalation.data.pathCreated };
     steps.push({ step: 'create-escalation-policy', ok: true, id: escalation.data.id, error: escalation.data.pathError });
@@ -71,7 +72,7 @@ export async function runGuidedSetupAction({
 
   if (includeAlertSource) {
     try {
-      const source = await createAlertSourceAction({ teamId, name: `${teamName} Generic webhook` });
+      const source = await createAlertSourceAction({ teamId, name: `${teamName} Generic webhook`, reuseByName: true });
       data.alertSource = { id: source.data.id, webhookEndpoint: source.data.webhookEndpoint };
       steps.push({ step: 'create-alert-source', ok: true, id: source.data.id, error: null });
     } catch (error) {
