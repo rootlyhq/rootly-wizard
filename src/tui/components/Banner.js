@@ -53,14 +53,27 @@ const BLOOM_MAX = Math.max(
 const BLOOM_SPEED = 1.2; // distance units revealed per frame
 const BLOOM_FRAMES = Math.ceil((BLOOM_MAX + CREST.length) / BLOOM_SPEED);
 
+// The banner plays a finite intro — bloom, the tagline writes on, then one
+// glimmer sweep — and then SETTLES to a static resting logo, stopping the
+// per-frame timer entirely. A perpetual animation would re-render forever,
+// which (under React's dev build) grows the performance-entry buffer without
+// bound and keeps waking the CPU while the wizard sits idle.
+const SETTLE_FRAME = BLOOM_FRAMES + TAGLINE.length + CREST.length + GLIMMER_PERIOD + 4;
+
 export function Banner() {
   const { columns } = useWindowSize();
   const [frame, setFrame] = useState(0);
 
+  // Advance one frame at a time and stop once settled: scheduling the next tick
+  // only while frame < SETTLE_FRAME means the last render leaves no pending
+  // timer, so the component quiesces instead of animating forever.
   useEffect(() => {
-    const timer = setInterval(() => setFrame((f) => f + 1), 70);
-    return () => clearInterval(timer);
-  }, []);
+    if (frame >= SETTLE_FRAME) return undefined;
+    const timer = setTimeout(() => setFrame((f) => f + 1), 70);
+    return () => clearTimeout(timer);
+  }, [frame]);
+
+  const done = frame >= SETTLE_FRAME;
 
   // Glimmer front sweeps along the diagonal (col + row); cells near it brighten.
   const glimmerFront = frame % GLIMMER_PERIOD;
@@ -75,6 +88,7 @@ export function Banner() {
   const bloomFront = frame * BLOOM_SPEED;
   const bloomDone = frame > BLOOM_FRAMES;
   const cellColor = (row, col) => {
+    if (done) return palette.brand; // settled: static resting logo
     if (bloomDone) return glimmerColor(row, col);
     const edge = bloomFront - bloomDistance(row, col);
     if (edge < 0) return null; // not yet bloomed — render blank
@@ -118,6 +132,7 @@ export function Banner() {
   const settled = reveal > TAGLINE.length + CREST.length;
 
   const colorFor = (col) => {
+    if (done) return palette.brand; // settled: static resting tagline
     if (settled) {
       // Faint resting shimmer once fully revealed (slow, low-contrast).
       const idx = (((col - Math.floor(frame / 3)) % ramp.length) + ramp.length) % ramp.length;
