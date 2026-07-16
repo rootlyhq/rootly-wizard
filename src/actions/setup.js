@@ -13,9 +13,37 @@ export async function createTeamAction({
   name,
   description = 'Created during Rootly setup',
   memberEmails = [],
-  enableAlertsAndBroadcast = false
+  enableAlertsAndBroadcast = false,
+  reuseByName = false
 } = {}) {
   const api = await loadApiClient();
+
+  // Reuse an existing team by name so a re-run (or a workspace that already has
+  // this team) doesn't fail on "Name has already been taken". Teams are their
+  // own group, so the name-only match (teamId=null) is what we want here.
+  if (reuseByName) {
+    try {
+      const existing = findByName((await api.listTeams())?.data, name, null);
+      if (existing) {
+        return {
+          ok: true,
+          summary: `Reused existing team ${name}.`,
+          data: {
+            id: existing.id,
+            name,
+            description,
+            memberIds: [],
+            membershipSkipped: false,
+            userLookupUnavailable: false,
+            matchedUsers: [],
+            reused: true
+          }
+        };
+      }
+    } catch {
+      // If the lookup fails, fall through and create a fresh one.
+    }
+  }
 
   // Seed the signed-in human as the team's first member + admin. A user-less
   // API key authenticates as a service account, which we never seed.
