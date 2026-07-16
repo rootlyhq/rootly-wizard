@@ -18,14 +18,22 @@ function hash(c, r, salt) {
   return (x ^ (x >>> 16)) >>> 0;
 }
 
+// Play a finite burst of confetti (~3s), then settle on a static final frame
+// and stop re-rendering — a perpetual interval would animate (and, under
+// React's dev build, grow the performance-entry buffer) forever.
+const MAX_FRAMES = 24;
+
 export function Celebration() {
   const { columns } = useWindowSize();
   const [frame, setFrame] = useState(0);
 
+  // Schedule the next frame only until the burst is done, so the last render
+  // leaves no pending timer and the component quiesces.
   useEffect(() => {
-    const timer = setInterval(() => setFrame((f) => f + 1), 120);
-    return () => clearInterval(timer);
-  }, []);
+    if (frame >= MAX_FRAMES) return undefined;
+    const timer = setTimeout(() => setFrame((f) => f + 1), 120);
+    return () => clearTimeout(timer);
+  }, [frame]);
 
   const width = Math.max(20, Math.min(46, (columns || 80) - 12));
   const rows = [];
