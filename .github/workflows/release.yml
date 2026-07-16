@@ -6,24 +6,56 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      - name: Check version and release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check version
+        id: check
         run: |
           CURRENT_VERSION="v$(node -p "require('./package.json').version")"
           if git tag -l "${CURRENT_VERSION}" | grep -q "${CURRENT_VERSION}"; then
             echo "Version ${CURRENT_VERSION} already released"
-            exit 0
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
           fi
-          git tag "${CURRENT_VERSION}"
-          git push origin "${CURRENT_VERSION}"
-          gh release create "${CURRENT_VERSION}" --generate-notes --title "${CURRENT_VERSION}"
+      # keytar dlopens libsecret at runtime; install it on the runner.
+      - name: Install libsecret
+        if: steps.check.outputs.release == 'true'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
+      # NOTE: do NOT `npm install -g npm@latest` here — the newest npm fails to
+      # produce keytar's native binary during `npm ci` (build/Release/keytar.node
+      # missing). Node 24's bundled npm builds it fine (matches the green CI job)
+      # and is new enough for OIDC trusted publishing + --provenance.
+      - name: Install dependencies
+        if: steps.check.outputs.release == 'true'
+        run: npm ci
+      - name: Test
+        if: steps.check.outputs.release == 'true'
+        run: npm test
+      # Publish to npm before tagging so a failed publish leaves no dangling
+      # tag/release — the next push simply retries.
+      - name: Publish to npm
+        if: steps.check.outputs.release == 'true'
+        run: npm publish --provenance --access public
+      - name: Tag and create GitHub release
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+          gh release create "${VERSION}" --generate-notes --title "${VERSION}"
