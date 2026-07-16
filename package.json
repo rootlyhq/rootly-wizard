@@ -15,11 +15,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Rootly-AI-Labs/rootly-wizard.git"
+    "url": "git+https://github.com/rootlyhq/rootly-wizard.git"
   },
-  "homepage": "https://github.com/Rootly-AI-Labs/rootly-wizard#readme",
+  "homepage": "https://github.com/rootlyhq/rootly-wizard#readme",
   "bugs": {
-    "url": "https://github.com/Rootly-AI-Labs/rootly-wizard/issues"
+    "url": "https://github.com/rootlyhq/rootly-wizard/issues"
   },
   "keywords": [
     "rootly",
