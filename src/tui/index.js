@@ -261,10 +261,31 @@ function InkWizardApp({ onExit }) {
     }
   }, [screen]);
 
+  // Detect a stored (keychain) or env sign-in while on the welcome screen so we
+  // can show a "signed in" indicator before the user continues. Cheap
+  // (keychain read); the menu reuses this cached authContext.
+  useEffect(() => {
+    if (screen !== 'welcome' || authContext) return undefined;
+    let cancelled = false;
+    void (async () => {
+      const ctx = await loadAuthContextForTui();
+      if (!cancelled) setAuthContext(ctx);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [screen, authContext]);
+
   const leave = () => {
     onExit?.();
     exit();
   };
+
+  // Every user-initiated exit — including hitting Esc on the top-level screens —
+  // routes through the exit-confirm dialog (keep/delete the saved sign-in),
+  // rather than quitting the program outright. exit-confirm calls leave() to
+  // actually terminate once they choose.
+  const requestExit = () => setScreen('exit-confirm');
 
   // Drop the cached workspace snapshot so the next menu/data visit refetches.
   // Called after any action that may have changed the workspace.
@@ -293,17 +314,25 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'welcome') {
+    // Surface a detected keychain / env sign-in so a returning user knows
+    // Continue takes them straight in (the welcome effect loads authContext).
+    // SlideReveal renders plain strings, so this is a string, not a styled node.
+    const signedIn = authContext?.hasAuth
+      ? `✓ ${authContext.label || 'Saved Rootly sign-in detected'} — Continue to jump right in.`
+      : null;
     return h(WelcomeScreen, {
       lines: [
         'Get from an empty workspace to incident-ready on-call in minutes.',
         '',
-        'A handful of guided steps covers your teams, schedules, escalation, alerting, and integrations. No docs required.'
+        'A handful of guided steps covers your teams, schedules, escalation, alerting, and integrations. No docs required.',
+        ...(signedIn ? ['', signedIn] : [])
       ],
       // Head to the menu, whose effect checks the keychain for a stored
       // sign-in: returning users skip auth entirely, and only an unauthed
       // session gets routed on to the sign-in chooser.
       onContinue: () => setScreen('menu'),
-      onExit: leave
+      // Esc / Exit here shows the exit dialog rather than quitting outright.
+      onExit: requestExit
     });
   }
 
@@ -354,8 +383,12 @@ function InkWizardApp({ onExit }) {
               '',
               SIGNUP_URL,
               '',
-              'Once your account is set up, come back and sign in with an API token.'
+              'Once your account is set up, come back and sign in — with your browser or an API token.'
             ],
+            // Return to the sign-in chooser so they can pick browser (OAuth) or
+            // an API token; the default label here would be "Try again", which
+            // reads wrong after a successful hand-off.
+            continueLabel: 'Sign in',
             next: 'auth-method'
           });
           setScreen('result');
@@ -457,7 +490,8 @@ function InkWizardApp({ onExit }) {
         setAuthContext(null);
         setScreen('auth-method');
       },
-      onBack: leave
+      // Esc shows the exit dialog rather than quitting outright.
+      onBack: requestExit
     });
   }
 
@@ -2079,16 +2113,18 @@ function InkWizardApp({ onExit }) {
   return h(MainMenuScreen, {
     state,
     onBack: (option) => {
+      // Esc (no option) and the back/exit values all leave the top-level menu —
+      // route them through the exit dialog instead of quitting outright.
       if (!option) {
-        leave();
+        requestExit();
         return;
       }
       if (option.value === 'back') {
-        leave();
+        requestExit();
         return;
       }
       if (option.value === 'exit') {
-        leave();
+        requestExit();
         return;
       }
       if (option.value === 'status') {
