@@ -23,7 +23,7 @@ import {
 } from './actions/phone.js';
 import { deleteToken } from './auth.js';
 import { startWebHandoffAction, openUrl } from './actions/integrations.js';
-import { previewMcpSetupAction, applyMcpSetupAction } from './actions/mcp.js';
+import { applyMcpSetupAction } from './actions/mcp.js';
 
 function isWorkspaceAccessFailure(error) {
   const message = error?.message || String(error);
@@ -316,17 +316,6 @@ export async function startWebHandoffForTui(input) {
     return {
       ok: false,
       summary: error?.message || 'Could not prepare the Rootly web handoff.'
-    };
-  }
-}
-
-export async function previewMcpForTui(input) {
-  try {
-    return await previewMcpSetupAction(input);
-  } catch (error) {
-    return {
-      ok: false,
-      summary: error?.message || 'Could not preview MCP setup.'
     };
   }
 }

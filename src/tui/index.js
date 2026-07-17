@@ -46,7 +46,6 @@ import {
   loadCurrentUserPhoneForTui,
   startWebHandoffForTui,
   openExternalUrlForTui,
-  previewMcpForTui,
   applyMcpForTui,
   loadTeamMembersForTui
 } from '../tui-legacy-bridge.js';
@@ -87,7 +86,6 @@ function InkWizardApp({ onExit }) {
   const [resultScreen, setResultScreen] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [formState, setFormState] = useState({});
-  const [mcpPreview, setMcpPreview] = useState(null);
   const [teamMembersData, setTeamMembersData] = useState(null);
   const [addableUsers, setAddableUsers] = useState(null);
   const [directoryUsers, setDirectoryUsers] = useState(null);
@@ -795,13 +793,12 @@ function InkWizardApp({ onExit }) {
       lines: [
         'Adds Rootly’s hosted MCP server so your AI client can pull Rootly data.',
         '',
-        'Claude Code — registers it globally, available in every project.',
-        'Codex — preview shows the config; apply writes it.'
+        'Claude Code — registers it globally with your token, available in every project.',
+        'Codex — writes a config that reads your token from the ROOTLY_TOKEN env var.'
       ],
       options: [
         { label: 'Claude Code (recommended)', value: 'apply-claude-user' },
-        { label: 'Codex — preview config', value: 'preview-codex' },
-        { label: 'Codex — apply config', value: 'apply-codex' },
+        { label: 'Codex', value: 'apply-codex' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -811,13 +808,6 @@ function InkWizardApp({ onExit }) {
         }
         setActionReturnTo('mcp-menu');
         setLoading(true);
-        if (option.value === 'preview-codex') {
-          const result = await previewMcpForTui({ clients: ['Codex'], auth: 'Use stored token' });
-          setLoading(false);
-          setMcpPreview(result);
-          setScreen('mcp-preview');
-          return;
-        }
         // Claude Code registers globally via `claude mcp add --scope user`
         // (Rootly MCP works across every project). Codex writes its own config.
         let clients = ['Codex'];
@@ -846,15 +836,6 @@ function InkWizardApp({ onExit }) {
         setScreen('result');
       },
       onBack: () => setScreen('general-menu')
-    });
-  }
-
-  if (screen === 'mcp-preview') {
-    return h(ListScreen, {
-      title: 'MCP preview',
-      items: (mcpPreview?.data?.preview || []).map((entry) => entry.replace(/\n/g, ' ')),
-      emptyLabel: 'No preview available.',
-      onBack: () => setScreen('mcp-menu')
     });
   }
 
