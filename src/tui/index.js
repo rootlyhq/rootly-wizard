@@ -96,6 +96,11 @@ function InkWizardApp({ onExit }) {
   const [spExisting, setSpExisting] = useState(null);
   const [userPhone, setUserPhone] = useState(null);
   const [authRecovery, setAuthRecovery] = useState(null);
+  // Where a completed action returns on Continue. Actions launched from a
+  // General setup submenu set this so the user lands back in that submenu
+  // (e.g. Integrations) to run another, instead of the main menu. Direct
+  // launches from the main menu reset it to 'menu'.
+  const [actionReturnTo, setActionReturnTo] = useState('menu');
 
   useEffect(() => {
     let cancelled = false;
@@ -513,10 +518,16 @@ function InkWizardApp({ onExit }) {
       lines: resultScreen.lines,
       actions: resultScreen.actions || [],
       onContinue: () => {
-        // Results that return to the menu may follow a mutation; refresh the
-        // workspace snapshot so coverage reflects the change.
+        // Actions launched from a General setup submenu return there (so the
+        // user can run another) instead of the main menu. Action results are
+        // authored with next:'menu'; redirect them when a submenu is in play.
+        const target = resultScreen.next === 'menu' && actionReturnTo !== 'menu'
+          ? actionReturnTo
+          : resultScreen.next;
+        // A completed action may have mutated the workspace; refresh the
+        // snapshot so coverage reflects the change on the next menu visit.
         if (resultScreen.next === 'menu') clearWorkspaceCache();
-        setScreen(resultScreen.next);
+        setScreen(target);
       },
       onExit: leave,
       continueLabel: resultScreen.continueLabel || (resultScreen.next === 'menu' ? 'Continue' : 'Try again')
@@ -542,7 +553,7 @@ function InkWizardApp({ onExit }) {
         { label: 'Inspect: status, teams, schedules', value: 'inspect' },
         { label: 'Set up MCP / IDE', value: 'mcp' },
         { label: 'Chat with us', value: 'chat' },
-        { label: 'Back', value: 'back' }
+        { label: 'Back to main menu', value: 'back' }
       ],
       onSelect: (option) => {
         if (option.value === 'back') {
@@ -659,6 +670,7 @@ function InkWizardApp({ onExit }) {
           setScreen('general-menu');
           return;
         }
+        setActionReturnTo('setup-menu');
         if (option.value === 'create-team') {
           setScreen('create-team');
           return;
@@ -666,7 +678,7 @@ function InkWizardApp({ onExit }) {
         if (option.value === 'create-status-page') {
           // Launch the guided public status-page flow (detects existing pages first).
           setSpExisting(null);
-          setFormState({ sp: { isPublic: true, returnTo: 'general-menu' } });
+          setFormState({ sp: { isPublic: true, returnTo: 'setup-menu' } });
           setScreen('sp-start');
           return;
         }
@@ -691,6 +703,7 @@ function InkWizardApp({ onExit }) {
           setScreen('general-menu');
           return;
         }
+        setActionReturnTo('verify-menu');
         setFormState({ pendingAction: option.value });
         setScreen('team-picker');
       },
@@ -704,7 +717,6 @@ function InkWizardApp({ onExit }) {
       lines: ['Choose the integration flow you want to run.'],
       options: [
         { label: 'Connect Slack for incidents', value: 'slack' },
-        { label: 'Connect an alert source', value: 'alert-source' },
         { label: 'Connect vendor integration in Rootly web', value: 'vendor' },
         { label: 'Back', value: 'back' }
       ],
@@ -713,11 +725,7 @@ function InkWizardApp({ onExit }) {
           setScreen('general-menu');
           return;
         }
-        if (option.value === 'alert-source') {
-          setFormState({ pendingAction: 'create-alert-source' });
-          setScreen('team-picker');
-          return;
-        }
+        setActionReturnTo('integrations-menu');
         if (option.value === 'slack') {
           setLoading(true);
           const result = await startWebHandoffForTui({ kind: 'Slack', open: true });
@@ -798,6 +806,7 @@ function InkWizardApp({ onExit }) {
           setScreen('menu');
           return;
         }
+        setActionReturnTo('mcp-menu');
         setLoading(true);
         if (option.value === 'preview-codex') {
           const result = await previewMcpForTui({ clients: ['Codex'], auth: 'Use stored token' });
@@ -2154,10 +2163,12 @@ function InkWizardApp({ onExit }) {
         return;
       }
       if (option.value === 'quickstart') {
+        setActionReturnTo('menu');
         setScreen('one-shot');
         return;
       }
       if (option.value === 'create-team') {
+        setActionReturnTo('menu');
         setScreen('create-team');
         return;
       }
