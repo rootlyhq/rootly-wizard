@@ -1172,12 +1172,10 @@ function InkWizardApp({ onExit }) {
         title: 'Quick start',
         lines: [
           onlyUser
-            ? authContext?.isApiKey
-              ? 'You’ll be added to the team and put on call.'
-              : 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
+            ? `${onlyUser.label} will be added to the team, put on call, and paged by the test alert.${authContext?.isApiKey ? '' : ' Sign in with an API key to add more teammates.'}`
             : directoryUsers?.userLookupUnavailable
-              ? 'This sign-in can’t list other Rootly users, so just you will be added to the team and put on call.'
-              : 'No other users to add — just you will be added to the team and put on call.'
+              ? 'This sign-in can’t list other Rootly users, so just the signed-in user will be added to the team, put on call, and paged by the test alert.'
+              : 'No other users to add — just the signed-in user will be added to the team, put on call, and paged by the test alert.'
         ],
         options: [
           { label: 'Run setup', value: 'run' },
@@ -1197,6 +1195,7 @@ function InkWizardApp({ onExit }) {
 
     return h(MultiSelectScreen, {
       title: 'Who goes on the team & on call?',
+      lines: ['Selected people are added to the team, put on call, and paged by the test alert.'],
       options,
       onSubmit: (selectedOptions) => {
         setFormState({ oneShotMemberIds: selectedOptions.map((option) => option.value) });
