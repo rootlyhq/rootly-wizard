@@ -30,7 +30,6 @@ import {
   loadDirectoryUsersForTui,
   createScheduleForTui,
   createEscalationPolicyForTui,
-  createAlertSourceForTui,
   createStatusPageForTui,
   loadStatusPageComponentsForTui,
   createCustomComponentForTui,
@@ -2044,31 +2043,6 @@ function InkWizardApp({ onExit }) {
           title: result.ok ? 'Escalation policy created' : 'Escalation policy needs attention',
           lines: result.ok
             ? [`Team: ${selectedTeam?.name || 'Unknown'}`, `Policy: ${result.data?.name || value}`]
-            : [friendlyError(result.summary)],
-          next: 'menu'
-        });
-        setScreen('result');
-      },
-      onBack: () => setScreen('menu')
-    });
-  }
-
-  if (screen === 'create-alert-source') {
-    return h(TextEntryScreen, {
-      title: 'Connect an alert source',
-      prompt: selectedTeam ? `Alert source name for ${selectedTeam.name}` : 'Alert source name',
-      initialValue: selectedTeam ? `${selectedTeam.name} Generic Webhook` : 'Generic webhook',
-      onSubmit: async (value) => {
-        setLoading(true);
-        const result = await createAlertSourceForTui({
-          teamId: selectedTeam?.id,
-          name: value || 'Generic webhook'
-        });
-        setLoading(false);
-        setResultScreen({
-          title: result.ok ? 'Alert source created' : 'Alert source needs attention',
-          lines: result.ok
-            ? [`Source: ${result.data?.name || value}`, result.data?.webhookEndpoint ? `Webhook: ${result.data.webhookEndpoint}` : 'Webhook created']
             : [friendlyError(result.summary)],
           next: 'menu'
         });

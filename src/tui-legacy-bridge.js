@@ -8,7 +8,6 @@ import {
   addTeamMembersByIdsAction,
   createScheduleAction,
   createEscalationPolicyAction,
-  createAlertSourceAction,
   createStatusPageAction,
   getStatusPagesAction,
   publishStatusPageAction,
@@ -174,19 +173,6 @@ export async function createEscalationPolicyForTui(input) {
     return {
       ok: false,
       summary: error?.message || 'The wizard could not create the escalation policy.'
-    };
-  }
-}
-
-export async function createAlertSourceForTui(input) {
-  try {
-    // Standalone flow: reuse an existing source of the same name instead of
-    // creating a duplicate on re-run. (The one-shot calls the action directly.)
-    return await createAlertSourceAction({ reuseByName: true, ...input });
-  } catch (error) {
-    return {
-      ok: false,
-      summary: error?.message || 'The wizard could not create the alert source.'
     };
   }
 }
