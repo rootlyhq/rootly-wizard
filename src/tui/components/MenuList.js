@@ -22,15 +22,20 @@ function wrapText(text, width) {
 }
 
 function computeWindow(items, selectedIndex, maxRows) {
-  let start = selectedIndex;
-  let used = items[selectedIndex]?.height || 1;
+  if (items.length === 0) return { start: 0, end: -1 };
+  // Clamp: selectedIndex can outlive a shorter options list (state persists
+  // across re-renders), which would index past the array and read .height of
+  // undefined.
+  const start0 = Math.max(0, Math.min(selectedIndex, items.length - 1));
+  let start = start0;
+  let used = items[start0].height || 1;
   while (start > 0) {
     const next = items[start - 1].height;
     if (used + next > maxRows) break;
     start -= 1;
     used += next;
   }
-  let end = selectedIndex;
+  let end = start0;
   while (end < items.length - 1) {
     const next = items[end + 1].height;
     if (used + next > maxRows) break;
@@ -57,7 +62,10 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
   );
 
   const maxRows = Math.max(5, rows - 14);
-  const { start, end } = computeWindow(items, selectedIndex, maxRows);
+  // selectedIndex is component state that can lag behind a shrunk options list;
+  // clamp before using it to index items so nothing reads past the array.
+  const safeIndex = items.length ? Math.min(Math.max(selectedIndex, 0), items.length - 1) : 0;
+  const { start, end } = computeWindow(items, safeIndex, maxRows);
   const visibleItems = items.slice(start, end + 1);
 
   useInput((input, key) => {
@@ -126,7 +134,7 @@ export function MenuList({ options, onSelect, onCancel, title, tint }) {
     children.push(h(Box, { key: 'uphint', marginBottom: 1 }, h(Text, { color: palette.border }, `  ${glyphs.more}${glyphs.more}${glyphs.more} more above`)));
   }
   visibleItems.forEach(({ option, index, lines }, visibleIndex) => {
-    const active = index === selectedIndex;
+    const active = index === safeIndex;
     const numLabel = `${index + 1}`;
     const indent = ' '.repeat(2 + numLabel.length + 2);
     const cursorColor = tint || (active ? palette.brand : palette.border);
