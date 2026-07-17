@@ -716,7 +716,7 @@ function InkWizardApp({ onExit }) {
       lines: ['Choose the integration flow you want to run.'],
       options: [
         { label: 'Connect Slack for incidents', value: 'slack' },
-        { label: 'Connect vendor integration in Rootly web', value: 'vendor' },
+        { label: 'Connect an alert source — Datadog, Sentry…', value: 'vendor' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -753,8 +753,8 @@ function InkWizardApp({ onExit }) {
 
   if (screen === 'vendor-menu') {
     return h(OptionScreen, {
-      title: 'Vendor integration',
-      lines: ['These integrations still connect through Rootly web.'],
+      title: 'Connect an alert source',
+      lines: ['These alert sources connect through Rootly web.'],
       options: [
         { label: 'Datadog', value: 'Datadog' },
         { label: 'Grafana', value: 'Grafana' },
@@ -792,17 +792,23 @@ function InkWizardApp({ onExit }) {
   if (screen === 'mcp-menu') {
     return h(OptionScreen, {
       title: 'MCP / IDE setup',
-      lines: ['Configure the hosted Rootly MCP server for supported clients.'],
+      lines: [
+        'Adds Rootly’s hosted MCP server so your AI client can pull Rootly data.',
+        '',
+        'Claude Code · all projects — available everywhere (global config).',
+        'Claude Code · this project — writes .mcp.json in this folder only.',
+        'Codex · preview shows the config; apply writes it.'
+      ],
       options: [
-        { label: 'Apply Claude Code — all projects (recommended)', value: 'apply-claude-user' },
-        { label: 'Apply Claude Code — this project only', value: 'apply-claude-project' },
-        { label: 'Preview Codex config', value: 'preview-codex' },
-        { label: 'Apply Codex config', value: 'apply-codex' },
+        { label: 'Claude Code — all projects (recommended)', value: 'apply-claude-user' },
+        { label: 'Claude Code — this project only', value: 'apply-claude-project' },
+        { label: 'Codex — preview config', value: 'preview-codex' },
+        { label: 'Codex — apply config', value: 'apply-codex' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
         if (option.value === 'back') {
-          setScreen('menu');
+          setScreen('general-menu');
           return;
         }
         setActionReturnTo('mcp-menu');
@@ -846,7 +852,7 @@ function InkWizardApp({ onExit }) {
         });
         setScreen('result');
       },
-      onBack: () => setScreen('menu')
+      onBack: () => setScreen('general-menu')
     });
   }
 
