@@ -2,20 +2,22 @@ import { spawn } from 'node:child_process';
 
 const DEFAULT_APP_BASE_URL = process.env.ROOTLY_APP_URL?.trim() || 'https://rootly.com';
 
-// Vendors that are alert sources deep-link to the "new alert source" form with
-// the source type preselected. The values are the Rails STI class names
-// (Alerts::<X>Source) the form expects in alerts_source[sourceable_type].
-const ALERT_SOURCE_TYPES = {
-  Datadog: 'Alerts::DatadogSource',
-  Grafana: 'Alerts::GrafanaSource',
-  Sentry: 'Alerts::SentrySource'
+// Vendor integrations each have a dedicated "new account" page in Rootly web at
+// /account/integrations/<vendor>_accounts/new. Datadog/Grafana/Sentry are alert
+// sources; PagerDuty/Opsgenie are escalation integrations — but all use the same
+// per-vendor integration page (not the generic alert-sources form).
+const VENDOR_ACCOUNT_SLUGS = {
+  Datadog: 'datadog',
+  Grafana: 'grafana',
+  Sentry: 'sentry',
+  PagerDuty: 'pagerduty',
+  Opsgenie: 'opsgenie'
 };
 
 export function webHandoffUrl(kind, appBaseUrl = DEFAULT_APP_BASE_URL) {
-  const sourceableType = ALERT_SOURCE_TYPES[kind];
-  if (sourceableType) {
-    // e.g. /account/alert-sources/new?alerts_source%5Bsourceable_type%5D=Alerts%3A%3ADatadogSource
-    return `${appBaseUrl}/account/alert-sources/new?alerts_source%5Bsourceable_type%5D=${encodeURIComponent(sourceableType)}`;
+  const vendorSlug = VENDOR_ACCOUNT_SLUGS[kind];
+  if (vendorSlug) {
+    return `${appBaseUrl}/account/integrations/${vendorSlug}_accounts/new`;
   }
 
   switch (kind) {
@@ -24,12 +26,6 @@ export function webHandoffUrl(kind, appBaseUrl = DEFAULT_APP_BASE_URL) {
     case 'Phone':
       // User profile, where phone numbers and notification rules are managed.
       return `${appBaseUrl}/account/profile`;
-    case 'PagerDuty':
-      // Not an alert source — PagerDuty connects as an escalation integration.
-      return `${appBaseUrl}/account/integrations/pagerduty_accounts/new`;
-    case 'Opsgenie':
-      // Not an alert source — Opsgenie connects as an escalation integration.
-      return `${appBaseUrl}/account/integrations/opsgenie_accounts/new`;
     case 'TestPage': {
       // Deep link that opens Rootly's "manual page" modal on the alerts page.
       // Users can trigger a page from the UI when the wizard can't (e.g. an
