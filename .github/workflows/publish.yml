@@ -1,4 +1,7 @@
-name: Release
+# NOTE: this file MUST stay named publish.yml — npm's trusted-publisher (OIDC)
+# config for @rootly/wizard pins this workflow filename. Renaming it breaks
+# `npm publish` auth (ENEEDAUTH). Update the npm setting before renaming.
+name: Release & Publish
 
 on:
   push:
@@ -6,7 +9,7 @@ on:
   # Fallback paths so a publish can happen without a version-bump push:
   #   * release: published — a maintainer cuts a release from the GitHub UI.
   #   * workflow_dispatch  — a maintainer force-publishes the current version.
-  # Auto-created releases (release.yml below, via GITHUB_TOKEN) do NOT re-trigger
+  # Auto-created releases (this workflow's own release step, via GITHUB_TOKEN) do NOT re-trigger
   # this workflow, so these fallbacks never double-publish the push path.
   release:
     types: [published]
