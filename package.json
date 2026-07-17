@@ -1,6 +1,6 @@
 {
   "name": "@rootly/wizard",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Guided Rootly setup CLI",
   "license": "MIT",
   "type": "module",

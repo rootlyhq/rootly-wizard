@@ -795,13 +795,11 @@ function InkWizardApp({ onExit }) {
       lines: [
         'Adds Rootly’s hosted MCP server so your AI client can pull Rootly data.',
         '',
-        'Claude Code · all projects — available everywhere (global config).',
-        'Claude Code · this project — writes .mcp.json in this folder only.',
-        'Codex · preview shows the config; apply writes it.'
+        'Claude Code — registers it globally, available in every project.',
+        'Codex — preview shows the config; apply writes it.'
       ],
       options: [
-        { label: 'Claude Code — all projects (recommended)', value: 'apply-claude-user' },
-        { label: 'Claude Code — this project only', value: 'apply-claude-project' },
+        { label: 'Claude Code (recommended)', value: 'apply-claude-user' },
         { label: 'Codex — preview config', value: 'preview-codex' },
         { label: 'Codex — apply config', value: 'apply-codex' },
         { label: 'Back', value: 'back' }
@@ -820,18 +818,13 @@ function InkWizardApp({ onExit }) {
           setScreen('mcp-preview');
           return;
         }
-        // Claude Code has two scopes: 'user' registers globally via
-        // `claude mcp add --scope user` (Rootly MCP works across every
-        // project); 'project' writes .mcp.json into the current directory
-        // (Rootly MCP only in that repo).
+        // Claude Code registers globally via `claude mcp add --scope user`
+        // (Rootly MCP works across every project). Codex writes its own config.
         let clients = ['Codex'];
-        let claudeCodeScope = 'project';
+        let claudeCodeScope = 'user';
         if (option.value === 'apply-claude-user') {
           clients = ['Claude Code'];
           claudeCodeScope = 'user';
-        } else if (option.value === 'apply-claude-project') {
-          clients = ['Claude Code'];
-          claudeCodeScope = 'project';
         }
         const result = await applyMcpForTui({ clients, auth: 'Use stored token', claudeCodeScope });
         setLoading(false);
