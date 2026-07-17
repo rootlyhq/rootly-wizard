@@ -83,6 +83,21 @@ function windsurfConfig(token) {
   };
 }
 
+function geminiConfig(token) {
+  // Gemini CLI (~/.gemini/settings.json) uses `httpUrl` for a streamable-HTTP
+  // server (`url` is reserved for SSE), plus a `headers` object for auth.
+  return {
+    mcpServers: {
+      rootly: {
+        httpUrl: HOSTED_MCP_URL,
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    }
+  };
+}
+
 function codexConfig(token) {
   // Embed the token inline via an Authorization header, like every other client
   // config, so Codex works without a separate ROOTLY_TOKEN env var. Use an
@@ -105,6 +120,8 @@ function configForClient(client, token) {
       return stringifyConfig(claudeCodeConfig(token));
     case 'Windsurf':
       return stringifyConfig(windsurfConfig(token));
+    case 'Gemini CLI':
+      return stringifyConfig(geminiConfig(token));
     case 'Codex':
       return `${codexConfig(token)}\n`;
     default:
@@ -135,6 +152,8 @@ function configFileForClient(client) {
       return path.join(home, '.codeium', 'windsurf', 'mcp_config.json');
     case 'Claude Code':
       return path.join(process.cwd(), '.mcp.json');
+    case 'Gemini CLI':
+      return path.join(home, '.gemini', 'settings.json');
     case 'Codex':
       return path.join(home, '.codex', 'config.toml');
     default:

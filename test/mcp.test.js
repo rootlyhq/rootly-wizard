@@ -18,6 +18,18 @@ test('Codex config embeds the token inline via an Authorization header', () => {
   assert.doesNotMatch(preview, /bearer_token_env_var/);
 });
 
+test('Gemini CLI config uses httpUrl (not url) with an Authorization header', () => {
+  const preview = buildHostedMcpPreview('Gemini CLI', 'Use stored token');
+  assert.match(preview, /"httpUrl": "https:\/\/mcp\.rootly\.com\/mcp"/);
+  assert.match(preview, /"Authorization": "Bearer <YOUR_ROOTLY_TOKEN>"/);
+  assert.doesNotMatch(preview, /"url":/);
+});
+
+test('Gemini CLI config path is ~/.gemini/settings.json', () => {
+  const target = getMcpConfigPath('Gemini CLI');
+  assert.match(target, /\.gemini[/\\]settings\.json$/);
+});
+
 test('Claude Code config path is the project-local .mcp.json', () => {
   const target = getMcpConfigPath('Claude Code');
   assert.ok(target.endsWith('.mcp.json'), `expected .mcp.json, got ${target}`);

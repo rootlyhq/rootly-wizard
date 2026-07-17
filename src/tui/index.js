@@ -810,6 +810,7 @@ function InkWizardApp({ onExit }) {
         { label: 'Claude Code (recommended)', value: 'apply-claude-user' },
         { label: 'Cursor', value: 'apply-cursor' },
         { label: 'Codex', value: 'apply-codex' },
+        { label: 'Gemini CLI', value: 'apply-gemini' },
         { label: 'Claude Desktop', value: 'apply-claude-desktop' },
         { label: 'Windsurf', value: 'apply-windsurf' },
         { label: 'Back', value: 'back' }
@@ -828,6 +829,7 @@ function InkWizardApp({ onExit }) {
           'apply-claude-user': 'Claude Code',
           'apply-cursor': 'Cursor',
           'apply-codex': 'Codex',
+          'apply-gemini': 'Gemini CLI',
           'apply-claude-desktop': 'Claude Desktop',
           'apply-windsurf': 'Windsurf'
         };
