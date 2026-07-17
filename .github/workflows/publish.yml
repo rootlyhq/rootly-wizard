@@ -1,26 +1,22 @@
 # NOTE: this file MUST stay named publish.yml — npm's trusted-publisher (OIDC)
 # config for @rootly/wizard pins this workflow filename. Renaming it breaks
 # `npm publish` auth (ENEEDAUTH). Update the npm setting before renaming.
-name: Release & Publish
+name: Publish
 
+# Publish ONLY when a version tag is pushed — never on merges to main. To cut a
+# release: bump package.json on a branch, merge the PR, then tag the merge
+# commit and push the tag, e.g. `git tag v0.2.11 && git push origin v0.2.11`.
 on:
   push:
-    branches: [main]
-  # Fallback paths so a publish can happen without a version-bump push:
-  #   * release: published — a maintainer cuts a release from the GitHub UI.
-  #   * workflow_dispatch  — a maintainer force-publishes the current version.
-  # Auto-created releases (this workflow's own release step, via GITHUB_TOKEN) do NOT re-trigger
-  # this workflow, so these fallbacks never double-publish the push path.
-  release:
-    types: [published]
-  workflow_dispatch:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,53 +27,32 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Check version
-        id: check
+      # Guard against a tag/package.json mismatch — npm publishes whatever
+      # package.json says, so the tag must agree or we'd ship the wrong version.
+      - name: Verify tag matches package.json
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          CURRENT_VERSION="v$(node -p "require('./package.json').version")"
-          echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-          # Push to main: only publish when this version isn't tagged yet, and
-          # tag + create the GitHub release ourselves.
-          # release/workflow_dispatch: always publish the current version, and
-          # skip tagging (the release/tag already exists or isn't wanted).
-          if [ "${{ github.event_name }}" = "push" ]; then
-            if git tag -l "${CURRENT_VERSION}" | grep -q "${CURRENT_VERSION}"; then
-              echo "Version ${CURRENT_VERSION} already released"
-              echo "publish=false" >> "$GITHUB_OUTPUT"
-              echo "tag=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "publish=true" >> "$GITHUB_OUTPUT"
-              echo "tag=true" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "tag=false" >> "$GITHUB_OUTPUT"
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          if [ "${TAG}" != "${PKG_VERSION}" ]; then
+            echo "Tag ${TAG} does not match package.json ${PKG_VERSION}"
+            exit 1
           fi
       # keytar dlopens libsecret at runtime; install it on the runner.
       - name: Install libsecret
-        if: steps.check.outputs.publish == 'true'
         run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
       # NOTE: do NOT `npm install -g npm@latest` here — the newest npm fails to
       # produce keytar's native binary during `npm ci` (build/Release/keytar.node
       # missing). Node 24's bundled npm builds it fine (matches the green CI job)
       # and is new enough for OIDC trusted publishing + --provenance.
       - name: Install dependencies
-        if: steps.check.outputs.publish == 'true'
         run: npm ci
       - name: Test
-        if: steps.check.outputs.publish == 'true'
         run: npm test
-      # Publish to npm before tagging so a failed publish leaves no dangling
-      # tag/release — the next push simply retries.
       - name: Publish to npm
-        if: steps.check.outputs.publish == 'true'
         run: npm publish --provenance --access public
-      - name: Tag and create GitHub release
-        if: steps.check.outputs.tag == 'true'
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.check.outputs.version }}
-        run: |
-          git tag "${VERSION}"
-          git push origin "${VERSION}"
-          gh release create "${VERSION}" --generate-notes --title "${VERSION}"
+          TAG: ${{ github.ref_name }}
+        run: gh release create "${TAG}" --generate-notes --title "${TAG}"
