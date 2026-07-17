@@ -7,7 +7,7 @@ Rootly Wizard is a guided command-line setup tool. It walks you through creating
 ![Rootly Wizard welcome screen](assets/welcome-screen.png)
 
 ```bash
-npx @rootly/wizard
+npx @rootly/wizard@latest
 ```
 
 ## Requirements
@@ -22,7 +22,7 @@ npx @rootly/wizard
 Run the wizard:
 
 ```bash
-npx @rootly/wizard
+npx @rootly/wizard@latest
 ```
 
 Sign in (browser or API token — your session is stored securely in your OS keychain), then land on the main menu:
@@ -53,7 +53,7 @@ Docs: <https://docs.rootly.com/api-reference/overview>
 Your token/session is stored in your operating system's keychain. You can also provide a token via the `ROOTLY_TOKEN` environment variable:
 
 ```bash
-ROOTLY_TOKEN=rootly_xxx npx @rootly/wizard
+ROOTLY_TOKEN=rootly_xxx npx @rootly/wizard@latest
 ```
 
 On exit, the wizard asks whether to keep the saved sign-in or delete it from your keychain (it keeps it by default).
