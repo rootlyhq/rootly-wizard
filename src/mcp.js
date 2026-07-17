@@ -75,13 +75,15 @@ function windsurfConfig(token) {
   };
 }
 
-function codexConfig() {
-  // The wizard's own env var is ROOTLY_TOKEN; keep the Codex MCP config
-  // pointing at the same name so users don't need to set two variables.
+function codexConfig(token) {
+  // Embed the token inline via an Authorization header, like every other client
+  // config, so Codex works without a separate ROOTLY_TOKEN env var. Use an
+  // inline TOML table so the whole server stays under one [mcp_servers.rootly]
+  // block (no sub-table), which keeps refresh-on-rerun a simple block replace.
   return [
     '[mcp_servers.rootly]',
     `url = "${HOSTED_MCP_URL}"`,
-    'bearer_token_env_var = "ROOTLY_TOKEN"'
+    `http_headers = { Authorization = "Bearer ${token}" }`
   ].join('\n');
 }
 
@@ -96,7 +98,7 @@ function configForClient(client, token) {
     case 'Windsurf':
       return stringifyConfig(windsurfConfig(token));
     case 'Codex':
-      return `${codexConfig()}\n`;
+      return `${codexConfig(token)}\n`;
     default:
       throw new Error(`Unsupported MCP client: ${client}`);
   }
@@ -189,24 +191,26 @@ export async function writeHostedMcpConfig(client, token) {
   const backupPath = await maybeBackupFile(targetPath);
 
   if (client === 'Codex') {
-    // Codex config is a shared TOML file (models, profiles, other MCP servers).
-    // Never overwrite it: append our [mcp_servers.rootly] block if it's absent,
-    // and leave the file untouched if it's already there (the block is static —
-    // it references the token via env var, so there's nothing to update). Token
-    // holds no secret, but still write owner-only for consistency.
+    // Codex config is a shared TOML file (models, profiles, other MCP servers),
+    // so never overwrite the whole file. Our [mcp_servers.rootly] block embeds
+    // the token, so refresh it on rerun: replace an existing block, append if
+    // absent. The block has no sub-tables (inline http_headers table), so it
+    // runs from its header to the next top-level table or EOF. Owner-only perms
+    // since the token is inline.
     let existing = '';
     try {
       existing = await fs.readFile(targetPath, 'utf8');
     } catch {
       existing = '';
     }
+    const block = codexConfig(token);
     let next;
     if (existing.includes('[mcp_servers.rootly]')) {
-      next = existing;
+      next = existing.replace(/\[mcp_servers\.rootly\][^[]*/, `${block}\n`);
     } else if (existing.trim()) {
-      next = `${existing.replace(/\s*$/, '')}\n\n${codexConfig()}\n`;
+      next = `${existing.replace(/\s*$/, '')}\n\n${block}\n`;
     } else {
-      next = `${codexConfig()}\n`;
+      next = `${block}\n`;
     }
     await fs.writeFile(targetPath, next, { encoding: 'utf8', mode: 0o600 });
     await fs.chmod(targetPath, 0o600).catch(() => {});

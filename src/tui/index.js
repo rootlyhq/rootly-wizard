@@ -794,7 +794,7 @@ function InkWizardApp({ onExit }) {
         'Adds Rootly’s hosted MCP server so your AI client can pull Rootly data.',
         '',
         'Claude Code — registers it globally with your token, available in every project.',
-        'Codex — writes a config that reads your token from the ROOTLY_TOKEN env var.'
+        'Codex — writes ~/.codex/config.toml with your token embedded.'
       ],
       options: [
         { label: 'Claude Code (recommended)', value: 'apply-claude-user' },
