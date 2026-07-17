@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     branches: [main]
+  # Fallback paths so a publish can happen without a version-bump push:
+  #   * release: published — a maintainer cuts a release from the GitHub UI.
+  #   * workflow_dispatch  — a maintainer force-publishes the current version.
+  # Auto-created releases (release.yml below, via GITHUB_TOKEN) do NOT re-trigger
+  # this workflow, so these fallbacks never double-publish the push path.
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -24,34 +32,45 @@ jobs:
         id: check
         run: |
           CURRENT_VERSION="v$(node -p "require('./package.json').version")"
-          if git tag -l "${CURRENT_VERSION}" | grep -q "${CURRENT_VERSION}"; then
-            echo "Version ${CURRENT_VERSION} already released"
-            echo "release=false" >> "$GITHUB_OUTPUT"
+          echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+          # Push to main: only publish when this version isn't tagged yet, and
+          # tag + create the GitHub release ourselves.
+          # release/workflow_dispatch: always publish the current version, and
+          # skip tagging (the release/tag already exists or isn't wanted).
+          if [ "${{ github.event_name }}" = "push" ]; then
+            if git tag -l "${CURRENT_VERSION}" | grep -q "${CURRENT_VERSION}"; then
+              echo "Version ${CURRENT_VERSION} already released"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "tag=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+              echo "tag=true" >> "$GITHUB_OUTPUT"
+            fi
           else
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "tag=false" >> "$GITHUB_OUTPUT"
           fi
       # keytar dlopens libsecret at runtime; install it on the runner.
       - name: Install libsecret
-        if: steps.check.outputs.release == 'true'
+        if: steps.check.outputs.publish == 'true'
         run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
       # NOTE: do NOT `npm install -g npm@latest` here — the newest npm fails to
       # produce keytar's native binary during `npm ci` (build/Release/keytar.node
       # missing). Node 24's bundled npm builds it fine (matches the green CI job)
       # and is new enough for OIDC trusted publishing + --provenance.
       - name: Install dependencies
-        if: steps.check.outputs.release == 'true'
+        if: steps.check.outputs.publish == 'true'
         run: npm ci
       - name: Test
-        if: steps.check.outputs.release == 'true'
+        if: steps.check.outputs.publish == 'true'
         run: npm test
       # Publish to npm before tagging so a failed publish leaves no dangling
       # tag/release — the next push simply retries.
       - name: Publish to npm
-        if: steps.check.outputs.release == 'true'
+        if: steps.check.outputs.publish == 'true'
         run: npm publish --provenance --access public
       - name: Tag and create GitHub release
-        if: steps.check.outputs.release == 'true'
+        if: steps.check.outputs.tag == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.check.outputs.version }}
