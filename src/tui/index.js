@@ -307,6 +307,18 @@ function InkWizardApp({ onExit }) {
         detail: 'Verifying your token with Rootly.'
       });
     }
+    if (screen === 'phone-entry') {
+      return h(LoadingScreen, {
+        title: 'Sending a code…',
+        detail: 'Texting a verification code to your phone.'
+      });
+    }
+    if (screen === 'phone-code') {
+      return h(LoadingScreen, {
+        title: 'Verifying…',
+        detail: 'Checking your code with Rootly.'
+      });
+    }
     return h(LoadingScreen, {
       title: screen === 'menu' ? 'Loading Rootly workspace…' : 'Loading Rootly data…',
       detail: authContext?.label || 'Checking your current sign-in and workspace state.'
@@ -1153,7 +1165,9 @@ function InkWizardApp({ onExit }) {
         title: 'Quick start',
         lines: [
           onlyUser
-            ? 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
+            ? authContext?.isApiKey
+              ? 'You’ll be added to the team and put on call.'
+              : 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
             : directoryUsers?.userLookupUnavailable
               ? 'This sign-in can’t list other Rootly users, so just you will be added to the team and put on call.'
               : 'No other users to add — just you will be added to the team and put on call.'

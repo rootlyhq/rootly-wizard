@@ -63,6 +63,12 @@ export async function loadAuthContextForTui() {
   return {
     hasAuth: Boolean(envToken || storedToken),
     source: envToken ? 'env-token' : storedToken ? 'stored-token' : 'none',
+    // mode distinguishes an API key (env-token/stored-token) from a browser
+    // OAuth session (oauth) — source alone can't, since an OAuth session also
+    // resolves a stored token. Screens use this to tailor copy (e.g. only
+    // suggesting an API key when the user isn't already on one).
+    mode: authSummary?.mode || (envToken ? 'env-token' : storedToken ? 'stored-token' : 'none'),
+    isApiKey: authSummary ? authSummary.mode !== 'oauth' : Boolean(envToken || storedToken),
     label: authSummary?.label || (envToken ? 'Using ROOTLY_TOKEN from environment' : storedToken ? 'Stored Rootly sign-in found' : 'No Rootly sign-in found')
   };
 }
