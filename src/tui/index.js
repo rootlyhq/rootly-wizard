@@ -793,12 +793,25 @@ function InkWizardApp({ onExit }) {
       lines: [
         'Adds Rootly’s hosted MCP server so your AI client can pull Rootly data.',
         '',
-        'Claude Code — registers it globally with your token, available in every project.',
-        'Codex — writes ~/.codex/config.toml with your token embedded.'
+        'Claude Code registers globally (every project); other clients get their',
+        'config file written with your token embedded.',
+        // Browser (OAuth) sessions store a short-lived access token; embedding it
+        // in a static MCP config means MCP breaks once it expires. Warn, but
+        // still let them proceed (they may just want it working for now).
+        ...(authContext?.isApiKey === false
+          ? [
+              '',
+              '⚠ You’re signed in with a browser session. That token expires, so MCP',
+              '   will stop working later. Sign in with an API key for a setup that lasts.'
+            ]
+          : [])
       ],
       options: [
         { label: 'Claude Code (recommended)', value: 'apply-claude-user' },
+        { label: 'Cursor', value: 'apply-cursor' },
         { label: 'Codex', value: 'apply-codex' },
+        { label: 'Claude Desktop', value: 'apply-claude-desktop' },
+        { label: 'Windsurf', value: 'apply-windsurf' },
         { label: 'Back', value: 'back' }
       ],
       onSelect: async (option) => {
@@ -809,13 +822,17 @@ function InkWizardApp({ onExit }) {
         setActionReturnTo('mcp-menu');
         setLoading(true);
         // Claude Code registers globally via `claude mcp add --scope user`
-        // (Rootly MCP works across every project). Codex writes its own config.
-        let clients = ['Codex'];
-        let claudeCodeScope = 'user';
-        if (option.value === 'apply-claude-user') {
-          clients = ['Claude Code'];
-          claudeCodeScope = 'user';
-        }
+        // (Rootly MCP works across every project). Every other client gets its
+        // hosted-server config written with the token embedded.
+        const clientByValue = {
+          'apply-claude-user': 'Claude Code',
+          'apply-cursor': 'Cursor',
+          'apply-codex': 'Codex',
+          'apply-claude-desktop': 'Claude Desktop',
+          'apply-windsurf': 'Windsurf'
+        };
+        const clients = [clientByValue[option.value]];
+        const claudeCodeScope = 'user';
         const result = await applyMcpForTui({ clients, auth: 'Use stored token', claudeCodeScope });
         setLoading(false);
         const resultLines = result.ok
