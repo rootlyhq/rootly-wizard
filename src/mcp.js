@@ -21,13 +21,11 @@ function mergeMcpServers(existing, incoming) {
 }
 
 function hostedJsonConfig(token) {
-  // Cursor accepts either shape but recent releases prefer an explicit
-  // transport type for streamable-HTTP servers. Matching what we write for
-  // Claude Code keeps the format consistent across the JSON-config clients.
+  // Cursor infers the transport from the presence of `url`; its current config
+  // format is just url + headers (no explicit `type`/`transport` key).
   return {
     mcpServers: {
       rootly: {
-        type: 'http',
         url: HOSTED_MCP_URL,
         headers: {
           Authorization: `Bearer ${token}`
@@ -38,11 +36,21 @@ function hostedJsonConfig(token) {
 }
 
 function claudeDesktopConfig(token) {
+  // Claude Desktop has no native remote-HTTP transport, so bridge through
+  // mcp-remote (stdio). Pass the token via an env var referenced as
+  // Authorization:${AUTH_HEADER}: a space in the --header value ("Bearer x") is
+  // mangled by Claude Desktop's arg handling on Windows and is ambiguous for
+  // mcp-remote's first-colon split, so keep the arg space-free and hold the
+  // "Bearer <token>" value (spaces fine) in the environment. mcp-remote expands
+  // ${AUTH_HEADER} at runtime.
   return {
     mcpServers: {
       rootly: {
         command: 'npx',
-        args: ['-y', 'mcp-remote', 'https://mcp.rootly.com/sse', '--header', `Authorization: Bearer ${token}`]
+        args: ['-y', 'mcp-remote', 'https://mcp.rootly.com/sse', '--header', 'Authorization:${AUTH_HEADER}'],
+        env: {
+          AUTH_HEADER: `Bearer ${token}`
+        }
       }
     }
   };
