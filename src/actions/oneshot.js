@@ -96,6 +96,15 @@ export async function runOneShotSetupAction({
   data.members = chosenIds;
   data.rotation = rotationIds;
 
+  // Display label for the on-call person so the summary can name them without
+  // resolving the directory. We reliably know the current user's name here;
+  // other chosen ids fall back to "User <id>".
+  const cu = currentUser?.data?.attributes || {};
+  const currentUserLabel = cu.full_name || cu.name || cu.email || (currentUserId ? `User ${currentUserId}` : null);
+  data.rotationNames = rotationIds.map((id) =>
+    String(id) === String(currentUserId) ? currentUserLabel : `User ${id}`
+  );
+
   // 1. Team — reuse the signed-in user's existing team so a re-run doesn't pile
   // up duplicates. A user-less API key has none, so it creates one.
   let teamId = null;

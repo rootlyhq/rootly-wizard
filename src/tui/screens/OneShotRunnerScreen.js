@@ -122,7 +122,11 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
   // Done: detailed summary of what was created + next actions.
   const data = result.data || {};
   const nameFor = (id) => usersById[id]?.name || usersById[id]?.email || `User ${id}`;
-  const onCall = (data.rotation || []).map(nameFor).join(', ');
+  // Prefer the runner-provided names (works without the directory); fall back to
+  // resolving ids via usersById.
+  const onCall = (data.rotationNames && data.rotationNames.length)
+    ? data.rotationNames.join(', ')
+    : (data.rotation || []).map(nameFor).join(', ');
 
   const rows = [
     data.team && {

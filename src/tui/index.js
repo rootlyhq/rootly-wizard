@@ -27,7 +27,7 @@ import {
   addTeamMembersForTui,
   addTeamMembersByIdsForTui,
   loadAddableUsersForTui,
-  loadDirectoryUsersForTui,
+  loadCurrentUserForTui,
   createScheduleForTui,
   createEscalationPolicyForTui,
   createStatusPageForTui,
@@ -88,7 +88,7 @@ function InkWizardApp({ onExit }) {
   const [formState, setFormState] = useState({});
   const [teamMembersData, setTeamMembersData] = useState(null);
   const [addableUsers, setAddableUsers] = useState(null);
-  const [directoryUsers, setDirectoryUsers] = useState(null);
+  const [currentUserIdentity, setCurrentUserIdentity] = useState(null);
   const [spComponents, setSpComponents] = useState(null);
   const [spExisting, setSpExisting] = useState(null);
   const [userPhone, setUserPhone] = useState(null);
@@ -169,10 +169,10 @@ function InkWizardApp({ onExit }) {
         const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
         if (!cancelled) setAddableUsers(nextAddable);
       }
-      if (screen === 'one-shot-members' && !directoryUsers) {
+      if (screen === 'one-shot-members' && !currentUserIdentity) {
         setLoading(true);
-        const dir = await loadDirectoryUsersForTui();
-        if (!cancelled) setDirectoryUsers(dir);
+        const identity = await loadCurrentUserForTui();
+        if (!cancelled) setCurrentUserIdentity(identity);
       }
       if (!cancelled) {
         setLoading(false);
@@ -1157,49 +1157,31 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-members') {
-    const options = (directoryUsers?.users || []).map((user) => ({
-      label: user.name ? `${user.name}${user.email ? ` — ${user.email}` : ''}` : (user.email || user.id),
-      value: user.id
-    }));
-
-    // With no directory (an OAuth session can't list /v1/users) or only the
-    // signed-in user available, a check/uncheck list of one is pointless — just
-    // confirm and add that user (the chain puts them on call). Show the
-    // multiselect only when there are several people to choose from.
-    if (options.length <= 1) {
-      const onlyUser = options[0];
-      return h(OptionScreen, {
-        title: 'Quick start',
-        lines: [
-          onlyUser
-            ? authContext?.isApiKey
-              ? 'You’ll be added to the team and put on call.'
-              : 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
-            : directoryUsers?.userLookupUnavailable
-              ? 'This sign-in can’t list other Rootly users, so just you will be added to the team and put on call.'
-              : 'No other users to add — just you will be added to the team and put on call.'
-        ],
-        options: [
-          { label: 'Run setup', value: 'run' },
-          { label: 'Back to menu', value: 'back' }
-        ],
-        onSelect: (option) => {
-          if (option.value === 'back') {
-            setScreen('menu');
-            return;
-          }
-          setFormState({ oneShotMemberIds: onlyUser ? [onlyUser.value] : [] });
-          setScreen('one-shot-running');
-        },
-        onBack: () => setScreen('menu')
-      });
-    }
-
-    return h(MultiSelectScreen, {
-      title: 'Who goes on the team & on call?',
-      options,
-      onSubmit: (selectedOptions) => {
-        setFormState({ oneShotMemberIds: selectedOptions.map((option) => option.value) });
+    // No member picker — Quick start adds the signed-in user and puts them on
+    // call automatically. We still confirm and NAME who that is (name + email),
+    // so it's clear who gets paged — including when the token is a service
+    // account (the on-call identity is then the bot, not a human).
+    const who = currentUserIdentity?.label || 'the signed-in user';
+    const serviceNote = currentUserIdentity?.serviceAccount
+      ? 'This is your API key’s service account — pages go to its phone, not a teammate’s. Add a phone for it, or run as the person who should be paged.'
+      : null;
+    return h(OptionScreen, {
+      title: 'Quick start',
+      lines: [
+        `${who} will be added to the team, put on call, and paged by the test alert.`,
+        ...(serviceNote ? ['', serviceNote] : [])
+      ],
+      options: [
+        { label: 'Run setup', value: 'run' },
+        { label: 'Back to menu', value: 'back' }
+      ],
+      onSelect: (option) => {
+        if (option.value === 'back') {
+          setScreen('menu');
+          return;
+        }
+        // Empty list → the runner adds the signed-in user and puts them on call.
+        setFormState({ oneShotMemberIds: [] });
         setScreen('one-shot-running');
       },
       onBack: () => setScreen('menu')
@@ -1207,13 +1189,8 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-running') {
-    const usersById = {};
-    (directoryUsers?.users || []).forEach((user) => {
-      usersById[user.id] = user;
-    });
     return h(OneShotRunnerScreen, {
       memberIds: formState.oneShotMemberIds || [],
-      usersById,
       runner: runOneShotSetupForTui,
       // A successful run lands on the incident-ready screen (with the CEO nudge).
       onContinue: () => {

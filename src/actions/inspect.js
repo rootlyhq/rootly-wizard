@@ -1,4 +1,26 @@
-import { getActiveToken, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
+import { getActiveToken, extractUserId, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
+
+// The signed-in identity (who Quick start will add + page). With an API-key
+// token this is the service-account user, not the human who created the key —
+// surfacing name/email + serviceAccount lets the UI say exactly who gets paged.
+export async function getCurrentUserIdentityAction() {
+  const token = await getActiveToken();
+  if (!token) {
+    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
+  }
+  const api = await loadApiClient();
+  const me = await api.getCurrentUser();
+  const attrs = me?.data?.attributes || {};
+  const id = extractUserId(me);
+  const name = attrs.full_name || attrs.name || null;
+  const email = attrs.email || null;
+  const label = name ? (email ? `${name} — ${email}` : name) : (email || (id ? `User ${id}` : 'the signed-in user'));
+  return {
+    ok: true,
+    summary: 'Loaded current user.',
+    data: { id: id ? String(id) : null, name, email, label, serviceAccount: isServiceAccount(me) }
+  };
+}
 
 // Services + functionalities a status page can show as components. Values are
 // encoded "service:<id>" / "functionality:<id>" so the picker can split them.
@@ -242,42 +264,6 @@ function usersLookupUnavailable(error) {
   return message.includes('/v1/users') && message.includes('404');
 }
 
-export async function getDirectoryUsersAction() {
-  const token = await getActiveToken();
-  if (!token) {
-    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
-  }
-
-  const api = await loadApiClient();
-
-  // Limited OAuth sessions can't read /v1/users; flag that so the caller can
-  // fall back gracefully instead of failing.
-  let allUsers = [];
-  let userLookupUnavailable = false;
-  try {
-    allUsers = await api.listAllUsers();
-  } catch (error) {
-    if (usersLookupUnavailable(error)) {
-      userLookupUnavailable = true;
-    } else {
-      throw error;
-    }
-  }
-
-  const users = allUsers
-    .filter((record) => !isServiceAccount(record))
-    .map((record) => ({
-      id: String(record.id),
-      name: record?.attributes?.full_name || record?.attributes?.name || null,
-      email: record?.attributes?.email || null
-    }));
-
-  return {
-    ok: true,
-    summary: `Loaded ${users.length} directory user(s).`,
-    data: { total: users.length, users, userLookupUnavailable }
-  };
-}
 
 export async function getAddableTeamMembersAction({ teamId } = {}) {
   const token = await getActiveToken();
