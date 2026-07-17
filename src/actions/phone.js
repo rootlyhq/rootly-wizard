@@ -89,6 +89,35 @@ export async function startPhoneVerificationAction({ phone } = {}) {
   };
 }
 
+// Point the user's notification rules at the verified phone for call + SMS.
+// Verifying a number alone doesn't make a page ring it — the page follows the
+// user's notification rules, which default to email. Without this, Quick start
+// fires the alert to on-call but the phone never rings. Best-effort: an existing
+// rule set is updated in place; if there are none, an audible rule is created.
+async function wirePhoneIntoNotificationRules(api, userId, phoneNumberId) {
+  const withPhoneContacts = (types) =>
+    Array.from(new Set([...(types || []), 'call', 'sms', 'email']));
+  const rules = (await api.listUserNotificationRules(userId))?.data || [];
+  if (!rules.length) {
+    await api.createUserNotificationRule(userId, {
+      user_call_number_id: phoneNumberId,
+      user_sms_number_id: phoneNumberId,
+      enabled_contact_types: ['call', 'sms', 'email'],
+      notification_type: 'audible',
+      position: 1,
+      delay: 0
+    });
+    return;
+  }
+  for (const rule of rules) {
+    await api.updateNotificationRule(rule.id, {
+      user_call_number_id: phoneNumberId,
+      user_sms_number_id: phoneNumberId,
+      enabled_contact_types: withPhoneContacts(rule.attributes?.enabled_contact_types)
+    });
+  }
+}
+
 export async function confirmPhoneVerificationAction({ phoneNumberId, code } = {}) {
   const cleanCode = String(code || '').trim();
   if (!phoneNumberId) {
@@ -101,10 +130,26 @@ export async function confirmPhoneVerificationAction({ phoneNumberId, code } = {
   const api = await loadApiClient();
   try {
     await api.submitPhoneVerificationCode(phoneNumberId, cleanCode);
-    return { ok: true, summary: 'Phone number verified.', data: { phoneNumberId } };
   } catch (error) {
     return { ok: false, summary: `Could not verify the code: ${formatError(error)}` };
   }
+
+  // Route pages to this phone so on-call alerts actually ring it. Best-effort:
+  // verification already succeeded, so don't fail the step if this doesn't.
+  let notifyWarning = null;
+  try {
+    const me = await api.getCurrentUser();
+    const userId = extractUserId(me);
+    if (userId) await wirePhoneIntoNotificationRules(api, userId, phoneNumberId);
+  } catch (error) {
+    notifyWarning = `Verified, but couldn’t set call/SMS notification rules automatically: ${formatError(error)}`;
+  }
+
+  return {
+    ok: true,
+    summary: notifyWarning || 'Phone number verified.',
+    data: { phoneNumberId, notifyWarning }
+  };
 }
 
 export async function resendPhoneVerificationAction({ phoneNumberId } = {}) {

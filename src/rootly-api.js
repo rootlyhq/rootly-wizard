@@ -304,6 +304,35 @@ export class RootlyApiClient {
     return this.request(`/v1/phone_numbers/${phoneNumberId}`, { method: 'DELETE' });
   }
 
+  async listUserNotificationRules(userId) {
+    return this.request(`/v1/users/${userId}/notification_rules`);
+  }
+
+  async createUserNotificationRule(userId, attributes) {
+    return this.request(`/v1/users/${userId}/notification_rules`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'user_notification_rules',
+          attributes
+        }
+      }
+    });
+  }
+
+  async updateNotificationRule(id, attributes) {
+    return this.request(`/v1/notification_rules/${id}`, {
+      method: 'PATCH',
+      body: {
+        data: {
+          id,
+          type: 'user_notification_rules',
+          attributes
+        }
+      }
+    });
+  }
+
   async findUserByEmail(email) {
     const target = String(email).toLowerCase();
     let next = '/v1/users';

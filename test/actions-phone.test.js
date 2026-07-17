@@ -86,3 +86,43 @@ test('confirmPhoneVerificationAction surfaces an invalid code', async () => {
   const result = await confirmPhoneVerificationAction({ phoneNumberId: 'pn1', code: '000000' });
   assert.equal(result.ok, false);
 });
+
+test('confirmPhoneVerificationAction wires the phone into call/SMS notification rules', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/phone_numbers/pn1/verify_code') && req.method === 'PATCH') return { body: { message: 'verified' } };
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };
+    if (req.href.endsWith('/v1/users/42/notification_rules') && req.method === 'GET') {
+      return { body: { data: [{ id: 'nr1', type: 'user_notification_rules', attributes: { enabled_contact_types: ['email'] } }] } };
+    }
+    return { body: {} };
+  });
+
+  const result = await confirmPhoneVerificationAction({ phoneNumberId: 'pn1', code: '123456' });
+  assert.equal(result.ok, true);
+
+  const patch = calls.find((c) => c.href.endsWith('/v1/notification_rules/nr1') && c.method === 'PATCH');
+  assert.ok(patch, 'expected the notification rule to be patched');
+  assert.equal(patch.body.data.attributes.user_call_number_id, 'pn1');
+  assert.equal(patch.body.data.attributes.user_sms_number_id, 'pn1');
+  assert.deepEqual(
+    [...patch.body.data.attributes.enabled_contact_types].sort(),
+    ['call', 'email', 'sms']
+  );
+});
+
+test('confirmPhoneVerificationAction creates a rule when the user has none', async () => {
+  const calls = installFetch((req) => {
+    if (req.href.endsWith('/v1/phone_numbers/pn1/verify_code') && req.method === 'PATCH') return { body: { message: 'verified' } };
+    if (req.href.endsWith('/v1/users/me')) return { body: { data: { id: '42' } } };
+    if (req.href.endsWith('/v1/users/42/notification_rules') && req.method === 'GET') return { body: { data: [] } };
+    return { body: {} };
+  });
+
+  const result = await confirmPhoneVerificationAction({ phoneNumberId: 'pn1', code: '123456' });
+  assert.equal(result.ok, true);
+
+  const create = calls.find((c) => c.href.endsWith('/v1/users/42/notification_rules') && c.method === 'POST');
+  assert.ok(create, 'expected a notification rule to be created');
+  assert.equal(create.body.data.attributes.user_call_number_id, 'pn1');
+  assert.ok(create.body.data.attributes.enabled_contact_types.includes('call'));
+});
