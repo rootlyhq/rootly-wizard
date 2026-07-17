@@ -28,3 +28,16 @@ test('webHandoffUrl still routes known kinds correctly', () => {
     'https://rootly.com/account/profile'
   );
 });
+
+test('vendor alert sources deep-link to their per-vendor integration page', () => {
+  const cases = {
+    Datadog: 'https://rootly.com/account/integrations/datadog_accounts/new',
+    Grafana: 'https://rootly.com/account/integrations/grafana_accounts/new',
+    Sentry: 'https://rootly.com/account/integrations/sentry_accounts/new',
+    PagerDuty: 'https://rootly.com/account/integrations/pagerduty_accounts/new',
+    Opsgenie: 'https://rootly.com/account/integrations/opsgenie_accounts/new'
+  };
+  for (const [kind, expected] of Object.entries(cases)) {
+    assert.equal(webHandoffUrl(kind, 'https://rootly.com'), expected);
+  }
+});
