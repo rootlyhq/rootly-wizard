@@ -27,7 +27,7 @@ import {
   addTeamMembersForTui,
   addTeamMembersByIdsForTui,
   loadAddableUsersForTui,
-  loadDirectoryUsersForTui,
+  loadPagingTargetForTui,
   createScheduleForTui,
   createEscalationPolicyForTui,
   createStatusPageForTui,
@@ -88,7 +88,7 @@ function InkWizardApp({ onExit }) {
   const [formState, setFormState] = useState({});
   const [teamMembersData, setTeamMembersData] = useState(null);
   const [addableUsers, setAddableUsers] = useState(null);
-  const [directoryUsers, setDirectoryUsers] = useState(null);
+  const [pagingTarget, setPagingTarget] = useState(null);
   const [spComponents, setSpComponents] = useState(null);
   const [spExisting, setSpExisting] = useState(null);
   const [userPhone, setUserPhone] = useState(null);
@@ -169,10 +169,10 @@ function InkWizardApp({ onExit }) {
         const nextAddable = await loadAddableUsersForTui(selectedTeam.id);
         if (!cancelled) setAddableUsers(nextAddable);
       }
-      if (screen === 'one-shot-members' && !directoryUsers) {
+      if (screen === 'one-shot-members' && !pagingTarget) {
         setLoading(true);
-        const dir = await loadDirectoryUsersForTui();
-        if (!cancelled) setDirectoryUsers(dir);
+        const target = await loadPagingTargetForTui();
+        if (!cancelled) setPagingTarget(target);
       }
       if (!cancelled) {
         setLoading(false);
@@ -240,19 +240,25 @@ function InkWizardApp({ onExit }) {
     };
   }, [screen, spComponents]);
 
-  // Load the signed-in user's existing phone (for the pre-flight screen) so we
-  // can show it instead of offering to add one.
+  // Resolve who gets paged (the human, not the service-account bot) and check
+  // THEIR existing phone for the pre-flight screen — so the phone we add and the
+  // number we show both belong to the person who'll actually be on call.
   useEffect(() => {
     if (screen !== 'one-shot-prereqs' || userPhone !== null) return undefined;
     let cancelled = false;
     void (async () => {
-      const info = await loadCurrentUserPhoneForTui();
+      let target = pagingTarget;
+      if (!target) {
+        target = await loadPagingTargetForTui();
+        if (!cancelled && target) setPagingTarget(target);
+      }
+      const info = await loadCurrentUserPhoneForTui(target?.id ? { userId: target.id } : undefined);
       if (!cancelled) setUserPhone(info || { hasPhone: false, phone: null });
     })();
     return () => {
       cancelled = true;
     };
-  }, [screen, userPhone]);
+  }, [screen, userPhone, pagingTarget]);
 
   // Landing on a menu ends any in-progress flow: clear the picked team and the
   // pending-action form so a later flow can't act on a stale team selection.
@@ -910,6 +916,12 @@ function InkWizardApp({ onExit }) {
         'Your account comes with a public status page — set it up to keep customers informed.'
       ],
       options: [
+        // A token run already fired the alert and paged on-call automatically.
+        // An OAuth session can't (no alert-write), so offer the manual page here
+        // as the way to verify on-call paging.
+        ...(authContext?.isApiKey === false
+          ? [{ label: 'Send a test page (rings on-call)', value: 'test-page' }]
+          : []),
         { label: 'Set up your public status page', value: 'status-page' },
         { label: 'Continue configuring the platform', value: 'configure' },
         { label: 'Talk to our founder JJ (seriously)', value: 'chat-ceo' },
@@ -917,6 +929,22 @@ function InkWizardApp({ onExit }) {
         { label: 'Back to menu', value: 'back' }
       ],
       onSelect: async (option) => {
+        if (option.value === 'test-page') {
+          setLoading(true);
+          const result = await startWebHandoffForTui({ kind: 'TestPage', open: true });
+          setLoading(false);
+          const url = result?.data?.url;
+          setResultScreen({
+            title: 'Send a test page',
+            lines: result?.data?.opened
+              ? ['Opened Rootly’s manual page modal in your browser.', '', 'Fill it in to page whoever’s on call — we’ll be here when you’re done.', ...(url ? ['', hyperlink(url, '↗ Reopen the manual page in Rootly')] : [])]
+              : ['Couldn’t open your browser — open this link to page on-call from the Rootly app:', ...(url ? ['', hyperlink(url, '↗ Open the manual page in Rootly')] : [])],
+            continueLabel: 'Continue',
+            next: 'setup-complete'
+          });
+          setScreen('result');
+          return;
+        }
         if (option.value === 'status-page') {
           // Go straight to the seeded public page (no picker, no create branch).
           setSpExisting(null);
@@ -982,6 +1010,30 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-prereqs') {
+    // Service-account token with several humans: choose who gets added + paged
+    // BEFORE the phone step, so the phone (and on-call) attach to that human
+    // rather than the bot. Auto-resolved targets (self / single human) skip this.
+    if (pagingTarget?.mode === 'pick') {
+      return h(OptionScreen, {
+        title: 'Who should be on call?',
+        lines: ['Your API key is a service account — pick the person to add and page.'],
+        options: [
+          ...(pagingTarget.candidates || []).map((c) => ({ label: c.label, value: c.id })),
+          { label: 'Back to menu', value: 'back' }
+        ],
+        onSelect: (option) => {
+          if (option.value === 'back') {
+            setScreen('menu');
+            return;
+          }
+          const picked = (pagingTarget.candidates || []).find((c) => c.id === option.value);
+          setPagingTarget({ id: option.value, label: picked?.label || option.value, mode: 'picked', serviceAccount: true });
+          setUserPhone(null); // re-check the chosen human's phone for the pre-flight
+        },
+        onBack: () => setScreen('menu')
+      });
+    }
+
     // Wait for the phone lookup before rendering, so the screen doesn't flash
     // the "no phone" layout and then flip to "phone on file" when it resolves.
     if (userPhone === null) {
@@ -1091,7 +1143,7 @@ function InkWizardApp({ onExit }) {
       placeholder: '(415) 555-0123',
       onSubmit: async (value) => {
         setLoading(true);
-        const result = await startPhoneVerificationForTui({ phone: value });
+        const result = await startPhoneVerificationForTui({ phone: value, userId: pagingTarget?.id });
         setLoading(false);
         if (result.ok) {
           setFormState((prev) => ({ ...prev, phoneNumberId: result.data.phoneNumberId, phone: result.data.phone }));
@@ -1131,7 +1183,7 @@ function InkWizardApp({ onExit }) {
       },
       onSubmit: async (value) => {
         setLoading(true);
-        const result = await confirmPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId, code: value });
+        const result = await confirmPhoneVerificationForTui({ phoneNumberId: formState.phoneNumberId, code: value, userId: pagingTarget?.id });
         setLoading(false);
         if (result.ok) {
           setUserPhone(null); // refresh so the pre-flight shows the new number
@@ -1157,49 +1209,33 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-members') {
-    const options = (directoryUsers?.users || []).map((user) => ({
-      label: user.name ? `${user.name}${user.email ? ` — ${user.email}` : ''}` : (user.email || user.id),
-      value: user.id
-    }));
-
-    // With no directory (an OAuth session can't list /v1/users) or only the
-    // signed-in user available, a check/uncheck list of one is pointless — just
-    // confirm and add that user (the chain puts them on call). Show the
-    // multiselect only when there are several people to choose from.
-    if (options.length <= 1) {
-      const onlyUser = options[0];
-      return h(OptionScreen, {
-        title: 'Quick start',
-        lines: [
-          onlyUser
-            ? authContext?.isApiKey
-              ? 'You’ll be added to the team and put on call.'
-              : 'You’ll be added to the team and put on call. (Sign in with an API key to add more teammates.)'
-            : directoryUsers?.userLookupUnavailable
-              ? 'This sign-in can’t list other Rootly users, so just you will be added to the team and put on call.'
-              : 'No other users to add — just you will be added to the team and put on call.'
-        ],
-        options: [
-          { label: 'Run setup', value: 'run' },
-          { label: 'Back to menu', value: 'back' }
-        ],
-        onSelect: (option) => {
-          if (option.value === 'back') {
-            setScreen('menu');
-            return;
-          }
-          setFormState({ oneShotMemberIds: onlyUser ? [onlyUser.value] : [] });
-          setScreen('one-shot-running');
-        },
-        onBack: () => setScreen('menu')
-      });
-    }
-
-    return h(MultiSelectScreen, {
-      title: 'Who goes on the team & on call?',
-      options,
-      onSubmit: (selectedOptions) => {
-        setFormState({ oneShotMemberIds: selectedOptions.map((option) => option.value) });
+    // Quick start adds ONE person to the team + on-call and pages them. The
+    // target is already resolved by this point (self / the single human / a
+    // pick made during prereqs / bot fallback) — this screen just confirms.
+    const who = pagingTarget?.label || 'the signed-in user';
+    const note = (pagingTarget?.serviceAccount && pagingTarget?.mode === 'bot-fallback')
+      ? 'Heads up: your API key is a service account and no human user was found, so the page rings the bot’s phone, not a teammate’s.'
+      : (pagingTarget?.serviceAccount && pagingTarget?.mode === 'auto-human')
+        ? 'Your API key is a service account, so the wizard selected the human in your workspace to add and page.'
+        : null;
+    return h(OptionScreen, {
+      title: 'Quick start',
+      lines: [
+        `${who} will be added to the team, put on call, and paged by the test alert.`,
+        ...(note ? ['', note] : [])
+      ],
+      options: [
+        { label: 'Run setup', value: 'run' },
+        { label: 'Back to menu', value: 'back' }
+      ],
+      onSelect: (option) => {
+        if (option.value === 'back') {
+          setScreen('menu');
+          return;
+        }
+        // Add the resolved target (the human when the token is a bot). If we
+        // somehow lack an id, [] lets the runner fall back to the signed-in user.
+        setFormState({ oneShotMemberIds: pagingTarget?.id ? [pagingTarget.id] : [] });
         setScreen('one-shot-running');
       },
       onBack: () => setScreen('menu')
@@ -1207,13 +1243,8 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-running') {
-    const usersById = {};
-    (directoryUsers?.users || []).forEach((user) => {
-      usersById[user.id] = user;
-    });
     return h(OneShotRunnerScreen, {
       memberIds: formState.oneShotMemberIds || [],
-      usersById,
       runner: runOneShotSetupForTui,
       // A successful run lands on the incident-ready screen (with the CEO nudge).
       onContinue: () => {
@@ -1227,27 +1258,6 @@ function InkWizardApp({ onExit }) {
       onRetry: () => {
         clearWorkspaceCache();
         setScreen('one-shot-members');
-      },
-      // Opens Rootly's "manual page" modal. Uses the same
-      // handoff-plus-result-screen pattern as Slack/CEO/etc. so the user gets
-      // the same "Opened in your browser…" acknowledgement. Lands on
-      // setup-complete afterwards — going back to one-shot-running would
-      // re-trigger the whole setup (that screen kicks off the run on mount).
-      onOpenTestPage: async () => {
-        setLoading(true);
-        const result = await startWebHandoffForTui({ kind: 'TestPage', open: true });
-        setLoading(false);
-        const url = result?.data?.url;
-        clearWorkspaceCache();
-        setResultScreen({
-          title: 'Send a test page',
-          lines: result?.data?.opened
-            ? ['Opened Rootly’s manual page modal in your browser.', '', 'Fill it in to page whoever’s on call — we’ll be here when you’re done.', ...(url ? ['', hyperlink(url, '↗ Reopen the manual page in Rootly')] : [])]
-            : ['Couldn’t open your browser — open this link to page on-call from the Rootly app:', ...(url ? ['', hyperlink(url, '↗ Open the manual page in Rootly')] : [])],
-          continueLabel: 'Continue',
-          next: 'setup-complete'
-        });
-        setScreen('result');
       },
       onExit: leave
     });

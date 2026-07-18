@@ -1,4 +1,43 @@
-import { getActiveToken, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
+import { getActiveToken, extractUserId, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
+
+function userLabel(record) {
+  const a = record?.attributes || record?.data?.attributes || {};
+  const name = a.full_name || a.name || null;
+  const id = extractUserId(record);
+  return name ? (a.email ? `${name} — ${a.email}` : name) : (a.email || (id ? `User ${id}` : 'the signed-in user'));
+}
+
+// Who should hold the phone and be paged. A human sign-in (browser/OAuth or a
+// personal token) pages itself. An API key authenticates as a service-account
+// bot that can't receive a page, so resolve a real human instead:
+//   - exactly one human  -> use them automatically
+//   - none               -> fall back to the bot (nothing better to page)
+//   - several            -> the caller must pick (candidates returned)
+export async function getPagingTargetAction() {
+  const token = await getActiveToken();
+  if (!token) {
+    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
+  }
+  const api = await loadApiClient();
+  const me = await api.getCurrentUser();
+  const meId = extractUserId(me);
+  if (!isServiceAccount(me)) {
+    return { ok: true, summary: 'Paging self.', data: { id: meId ? String(meId) : null, label: userLabel(me), mode: 'self', serviceAccount: false } };
+  }
+  let humans = [];
+  try {
+    humans = (await api.listAllUsers()).filter((u) => !isServiceAccount(u));
+  } catch {
+    // best-effort; treat as no reachable humans.
+  }
+  if (humans.length === 1) {
+    return { ok: true, summary: 'Auto-selected the only human.', data: { id: String(extractUserId(humans[0])), label: userLabel(humans[0]), mode: 'auto-human', serviceAccount: true } };
+  }
+  if (humans.length === 0) {
+    return { ok: true, summary: 'No human users; falling back to the service account.', data: { id: meId ? String(meId) : null, label: userLabel(me), mode: 'bot-fallback', serviceAccount: true } };
+  }
+  return { ok: true, summary: 'Multiple humans; pick one.', data: { mode: 'pick', serviceAccount: true, candidates: humans.map((h) => ({ id: String(extractUserId(h)), label: userLabel(h) })) } };
+}
 
 // Services + functionalities a status page can show as components. Values are
 // encoded "service:<id>" / "functionality:<id>" so the picker can split them.
@@ -242,42 +281,6 @@ function usersLookupUnavailable(error) {
   return message.includes('/v1/users') && message.includes('404');
 }
 
-export async function getDirectoryUsersAction() {
-  const token = await getActiveToken();
-  if (!token) {
-    return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
-  }
-
-  const api = await loadApiClient();
-
-  // Limited OAuth sessions can't read /v1/users; flag that so the caller can
-  // fall back gracefully instead of failing.
-  let allUsers = [];
-  let userLookupUnavailable = false;
-  try {
-    allUsers = await api.listAllUsers();
-  } catch (error) {
-    if (usersLookupUnavailable(error)) {
-      userLookupUnavailable = true;
-    } else {
-      throw error;
-    }
-  }
-
-  const users = allUsers
-    .filter((record) => !isServiceAccount(record))
-    .map((record) => ({
-      id: String(record.id),
-      name: record?.attributes?.full_name || record?.attributes?.name || null,
-      email: record?.attributes?.email || null
-    }));
-
-  return {
-    ok: true,
-    summary: `Loaded ${users.length} directory user(s).`,
-    data: { total: users.length, users, userLookupUnavailable }
-  };
-}
 
 export async function getAddableTeamMembersAction({ teamId } = {}) {
   const token = await getActiveToken();

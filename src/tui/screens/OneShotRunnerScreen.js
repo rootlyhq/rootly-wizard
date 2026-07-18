@@ -76,7 +76,7 @@ function SummaryRow({ label, value }) {
   );
 }
 
-export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, onContinue, onMenu, onRetry, onExit, onOpenTestPage }) {
+export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, onContinue, onMenu, onRetry, onExit }) {
   const [steps, setSteps] = useState([]);
   const [frame, setFrame] = useState(0);
   const [result, setResult] = useState(null);
@@ -122,7 +122,11 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
   // Done: detailed summary of what was created + next actions.
   const data = result.data || {};
   const nameFor = (id) => usersById[id]?.name || usersById[id]?.email || `User ${id}`;
-  const onCall = (data.rotation || []).map(nameFor).join(', ');
+  // Prefer the runner-provided names (works without the directory); fall back to
+  // resolving ids via usersById.
+  const onCall = (data.rotationNames && data.rotationNames.length)
+    ? data.rotationNames.join(', ')
+    : (data.rotation || []).map(nameFor).join(', ');
 
   const rows = [
     data.team && {
@@ -142,11 +146,6 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
 
   const options = result.ok
     ? [
-        // The alert step is blocked for OAuth sessions (no alert-write). The
-        // manual page modal is Rootly's UI equivalent — routes through the
-        // on-call escalation and rings the on-call phone. Also useful on a
-        // successful run to verify paging end-to-end.
-        ...(data.testPageUrl && onOpenTestPage ? [{ label: 'Send a test page (rings on-call)', value: 'test-page' }] : []),
         { label: 'Continue', value: 'continue' },
         { label: 'Back to menu', value: 'menu' }
       ]
@@ -181,7 +180,6 @@ export function OneShotRunnerScreen({ memberIds = [], usersById = {}, runner, on
           onSelect: (option) => {
             if (option.value === 'continue') onContinue?.();
             else if (option.value === 'retry') onRetry?.();
-            else if (option.value === 'test-page') onOpenTestPage?.();
             else onMenu?.();
           },
           onCancel: onMenu
