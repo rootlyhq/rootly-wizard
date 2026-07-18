@@ -1010,6 +1010,30 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-prereqs') {
+    // Service-account token with several humans: choose who gets added + paged
+    // BEFORE the phone step, so the phone (and on-call) attach to that human
+    // rather than the bot. Auto-resolved targets (self / single human) skip this.
+    if (pagingTarget?.mode === 'pick') {
+      return h(OptionScreen, {
+        title: 'Who should be on call?',
+        lines: ['Your API key is a service account — pick the person to add and page.'],
+        options: [
+          ...(pagingTarget.candidates || []).map((c) => ({ label: c.label, value: c.id })),
+          { label: 'Back to menu', value: 'back' }
+        ],
+        onSelect: (option) => {
+          if (option.value === 'back') {
+            setScreen('menu');
+            return;
+          }
+          const picked = (pagingTarget.candidates || []).find((c) => c.id === option.value);
+          setPagingTarget({ id: option.value, label: picked?.label || option.value, mode: 'picked', serviceAccount: true });
+          setUserPhone(null); // re-check the chosen human's phone for the pre-flight
+        },
+        onBack: () => setScreen('menu')
+      });
+    }
+
     // Wait for the phone lookup before rendering, so the screen doesn't flash
     // the "no phone" layout and then flip to "phone on file" when it resolves.
     if (userPhone === null) {
@@ -1185,33 +1209,9 @@ function InkWizardApp({ onExit }) {
   }
 
   if (screen === 'one-shot-members') {
-    // Quick start adds ONE person to the team + on-call and pages them.
-    // pagingTarget resolves who: the signed-in human, or — when the token is a
-    // service-account bot — a real human (auto-selected when there's exactly one).
-    if (pagingTarget?.mode === 'pick') {
-      // Several humans and a service-account token: let the user choose who goes
-      // on call (and whose phone the page rings).
-      return h(OptionScreen, {
-        title: 'Who should be on call?',
-        lines: ['Your API key is a service account, so pick the person to add and page.'],
-        options: [
-          ...(pagingTarget.candidates || []).map((c) => ({ label: c.label, value: c.id })),
-          { label: 'Back to menu', value: 'back' }
-        ],
-        onSelect: (option) => {
-          if (option.value === 'back') {
-            setScreen('menu');
-            return;
-          }
-          const picked = (pagingTarget.candidates || []).find((c) => c.id === option.value);
-          setPagingTarget({ ...pagingTarget, id: option.value, label: picked?.label || option.value, mode: 'picked' });
-          setFormState({ oneShotMemberIds: [option.value] });
-          setScreen('one-shot-running');
-        },
-        onBack: () => setScreen('menu')
-      });
-    }
-
+    // Quick start adds ONE person to the team + on-call and pages them. The
+    // target is already resolved by this point (self / the single human / a
+    // pick made during prereqs / bot fallback) — this screen just confirms.
     const who = pagingTarget?.label || 'the signed-in user';
     const note = (pagingTarget?.serviceAccount && pagingTarget?.mode === 'bot-fallback')
       ? 'Heads up: your API key is a service account and no human user was found, so the page rings the bot’s phone, not a teammate’s.'
