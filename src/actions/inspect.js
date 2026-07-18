@@ -1,25 +1,42 @@
 import { getActiveToken, extractUserId, isServiceAccount, loadApiClient, loadOnboardingState } from '../runtime.js';
 
-// The signed-in identity (who Quick start will add + page). With an API-key
-// token this is the service-account user, not the human who created the key —
-// surfacing name/email + serviceAccount lets the UI say exactly who gets paged.
-export async function getCurrentUserIdentityAction() {
+function userLabel(record) {
+  const a = record?.attributes || record?.data?.attributes || {};
+  const name = a.full_name || a.name || null;
+  const id = extractUserId(record);
+  return name ? (a.email ? `${name} — ${a.email}` : name) : (a.email || (id ? `User ${id}` : 'the signed-in user'));
+}
+
+// Who should hold the phone and be paged. A human sign-in (browser/OAuth or a
+// personal token) pages itself. An API key authenticates as a service-account
+// bot that can't receive a page, so resolve a real human instead:
+//   - exactly one human  -> use them automatically
+//   - none               -> fall back to the bot (nothing better to page)
+//   - several            -> the caller must pick (candidates returned)
+export async function getPagingTargetAction() {
   const token = await getActiveToken();
   if (!token) {
     return { ok: false, code: 'NO_AUTH', summary: 'No auth context found.', data: null };
   }
   const api = await loadApiClient();
   const me = await api.getCurrentUser();
-  const attrs = me?.data?.attributes || {};
-  const id = extractUserId(me);
-  const name = attrs.full_name || attrs.name || null;
-  const email = attrs.email || null;
-  const label = name ? (email ? `${name} — ${email}` : name) : (email || (id ? `User ${id}` : 'the signed-in user'));
-  return {
-    ok: true,
-    summary: 'Loaded current user.',
-    data: { id: id ? String(id) : null, name, email, label, serviceAccount: isServiceAccount(me) }
-  };
+  const meId = extractUserId(me);
+  if (!isServiceAccount(me)) {
+    return { ok: true, summary: 'Paging self.', data: { id: meId ? String(meId) : null, label: userLabel(me), mode: 'self', serviceAccount: false } };
+  }
+  let humans = [];
+  try {
+    humans = (await api.listAllUsers()).filter((u) => !isServiceAccount(u));
+  } catch {
+    // best-effort; treat as no reachable humans.
+  }
+  if (humans.length === 1) {
+    return { ok: true, summary: 'Auto-selected the only human.', data: { id: String(extractUserId(humans[0])), label: userLabel(humans[0]), mode: 'auto-human', serviceAccount: true } };
+  }
+  if (humans.length === 0) {
+    return { ok: true, summary: 'No human users; falling back to the service account.', data: { id: meId ? String(meId) : null, label: userLabel(me), mode: 'bot-fallback', serviceAccount: true } };
+  }
+  return { ok: true, summary: 'Multiple humans; pick one.', data: { mode: 'pick', serviceAccount: true, candidates: humans.map((h) => ({ id: String(extractUserId(h)), label: userLabel(h) })) } };
 }
 
 // Services + functionalities a status page can show as components. Values are
