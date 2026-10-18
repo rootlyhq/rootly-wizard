@@ -41,8 +41,8 @@
     "access": "public"
   },
   "dependencies": {
-    "ink": "^7.0.5",
+    "ink": "^8.0.0",
     "keytar": "^7.9.0",
-    "react": "^19.2.7"
+    "react": "^19.3.0"
   }
 }
