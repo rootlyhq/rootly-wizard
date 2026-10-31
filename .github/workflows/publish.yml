@@ -10,6 +10,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -52,8 +53,12 @@ jobs:
         run: npm test
       - name: Publish to npm
         run: npm publish --provenance --access public
-      - name: Create GitHub release
+
+      - name: Create GitHub release if missing
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "${TAG}" --generate-notes --title "${TAG}"
+        # Manual `git push origin v*` tags have no release yet; on the
+        # release-please dispatch the release already exists.
+        run: gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" --generate-notes --title "$TAG"
