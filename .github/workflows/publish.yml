@@ -10,6 +10,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -52,8 +53,3 @@ jobs:
         run: npm test
       - name: Publish to npm
         run: npm publish --provenance --access public
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: gh release create "${TAG}" --generate-notes --title "${TAG}"
